@@ -13,6 +13,7 @@ import org.bitcoins.node.config.NodeAppConfig
 import org.bitcoins.node.models.Peer
 import org.bitcoins.node.networking.peer.PeerMessageReceiver
 import org.bitcoins.node.networking.peer.PeerMessageReceiver.NetworkMessageReceived
+import org.bitcoins.node.networking.peer.PeerMessageReceiverState.fresh
 import org.bitcoins.node.util.BitcoinSNodeUtil
 import org.bitcoins.tor.Socks5Connection.{Socks5Connect, Socks5Connected}
 import org.bitcoins.tor.{Socks5Connection, Socks5ProxyParams}
@@ -22,6 +23,7 @@ import java.net.InetSocketAddress
 import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.language.postfixOps
 import scala.util._
 
 /** This actor is responsible for creating a connection,
@@ -230,7 +232,7 @@ case class P2PClientActor(
         //this is what registers a actor to send all byte messages to that is
         //received from our peer. Since we are using 'self' that means
         //our bitcoin peer will send all messages to this actor.
-        peerConnection ! Tcp.Register(self)
+        peerConnection ! Tcp.Register(self, keepOpenOnPeerClosed = true)
         peerConnection ! Tcp.ResumeReading
 
         currentPeerMsgHandlerRecv =
@@ -238,14 +240,32 @@ case class P2PClientActor(
         context.become(awaitNetworkRequest(peerConnection, unalignedBytes))
         unalignedBytes
 
-      case closeCmd @ (Tcp.ConfirmedClosed | Tcp.Closed | Tcp.Aborted |
-          Tcp.PeerClosed) =>
+      case closeCmd @ (Tcp.ConfirmedClosed | Tcp.Closed | Tcp.Aborted) =>
         logger.info(s"We've been disconnected by $peer command=${closeCmd}")
+
         //tell our peer message handler we are disconnecting
         val newPeerMsgRecv = currentPeerMsgHandlerRecv.disconnect()
 
         currentPeerMsgHandlerRecv = newPeerMsgRecv
         context.stop(self)
+        unalignedBytes
+
+      case Tcp.PeerClosed =>
+        val system = akka.actor.ActorSystem("system")
+        import system.dispatcher
+        val newPeerMsgRecv = currentPeerMsgHandlerRecv.toState(fresh()) //prints PreConnection here but later the logs say it is Initializing?
+        logger.info(newPeerMsgRecv.state)
+        currentPeerMsgHandlerRecv = newPeerMsgRecv
+
+        system.scheduler.scheduleWithFixedDelay(
+          0 seconds,
+          3 seconds,
+          self,
+          Tcp.Connect(peer.socket,
+                      timeout = Some(20.seconds),
+                      options = KeepAlive(true) :: Nil,
+                      pullMode = true))
+
         unalignedBytes
 
       case Tcp.Received(byteString: ByteString) =>
