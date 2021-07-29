@@ -13,7 +13,10 @@ import org.bitcoins.node.config.NodeAppConfig
 import org.bitcoins.node.models.Peer
 import org.bitcoins.node.networking.peer.PeerMessageReceiver
 import org.bitcoins.node.networking.peer.PeerMessageReceiver.NetworkMessageReceived
-import org.bitcoins.node.networking.peer.PeerMessageReceiverState.fresh
+import org.bitcoins.node.networking.peer.PeerMessageReceiverState.{
+  fresh,
+  Preconnection
+}
 import org.bitcoins.node.util.BitcoinSNodeUtil
 import org.bitcoins.tor.Socks5Connection.{Socks5Connect, Socks5Connected}
 import org.bitcoins.tor.{Socks5Connection, Socks5ProxyParams}
@@ -152,7 +155,7 @@ case class P2PClientActor(
           case None =>
             val peerAddress = peerOrProxyAddress
             logger.info(s"connected to ${peerAddress}")
-            context watch connection
+            // context watch connection
             val _ = handleEvent(event, connection, ByteVector.empty)
         }
 
@@ -223,7 +226,15 @@ case class P2PClientActor(
         unalignedBytes
       case Tcp.CommandFailed(command) =>
         logger.debug(s"Client Command failed: ${command}")
-
+        val system = akka.actor.ActorSystem("system")
+        import system.dispatcher
+        system.scheduler.scheduleOnce(3 seconds,
+                                      self,
+                                      Tcp.Connect(peer.socket,
+                                                  timeout = Some(20.seconds),
+                                                  options =
+                                                    KeepAlive(true) :: Nil,
+                                                  pullMode = true))
         unalignedBytes
       case Tcp.Connected(remote, local) =>
         logger.debug(s"Tcp connection to: ${remote}")
@@ -232,7 +243,10 @@ case class P2PClientActor(
         //this is what registers a actor to send all byte messages to that is
         //received from our peer. Since we are using 'self' that means
         //our bitcoin peer will send all messages to this actor.
+        logger.info(self.toString())
+        logger.info((peerConnection.toString()))
         peerConnection ! Tcp.Register(self, keepOpenOnPeerClosed = true)
+
         peerConnection ! Tcp.ResumeReading
 
         currentPeerMsgHandlerRecv =
@@ -253,18 +267,17 @@ case class P2PClientActor(
       case Tcp.PeerClosed =>
         val system = akka.actor.ActorSystem("system")
         import system.dispatcher
-        val newPeerMsgRecv = currentPeerMsgHandlerRecv.toState(fresh()) //prints PreConnection here but later the logs say it is Initializing?
-        logger.info(newPeerMsgRecv.state)
+        val newPeerMsgRecv = currentPeerMsgHandlerRecv.toState(fresh())
+        logger.info(newPeerMsgRecv.state.equals(Preconnection))
         currentPeerMsgHandlerRecv = newPeerMsgRecv
 
-        system.scheduler.scheduleWithFixedDelay(
-          0 seconds,
-          3 seconds,
-          self,
-          Tcp.Connect(peer.socket,
-                      timeout = Some(20.seconds),
-                      options = KeepAlive(true) :: Nil,
-                      pullMode = true))
+        system.scheduler.scheduleOnce(3 seconds,
+                                      self,
+                                      Tcp.Connect(peer.socket,
+                                                  timeout = Some(20.seconds),
+                                                  options =
+                                                    KeepAlive(true) :: Nil,
+                                                  pullMode = true))
 
         unalignedBytes
 
