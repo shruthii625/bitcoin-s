@@ -43,7 +43,8 @@ case class BitcoindConfig(
       s"bitcoin.conf in datadir=${datadir.getAbsolutePath} does not exist, creating now")
     BitcoindConfig.writeConfigToFile(this, datadir)
   }
-
+  BitcoindConfig.createCookieFile(datadir)
+  
   /** Converts the config back to a string that can be written
     * to file, and passed to `bitcoind`
     */
@@ -381,4 +382,13 @@ object BitcoindConfig extends ConfigFactory[BitcoindConfig] with Logging {
 
     confFile
   }
+
+  def createCookieFile( datadir: File): Path ={
+    Files.createDirectories(datadir.toPath)
+    val rpcauthStr= s"__cookie__:password"
+    val cookieFile = datadir.toPath.resolve(".cookie")
+    Files.write(cookieFile, rpcauthStr.getBytes())
+    cookieFile
+  }
+
 }
