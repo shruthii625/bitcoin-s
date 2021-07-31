@@ -6,7 +6,7 @@ object Deps {
   object V {
     val bouncyCastle = "1.69"
     val dropwizardMetricsV = "4.2.3" //https://github.com/dropwizard/metrics
-    val logback = "1.2.3"
+    val logback = "1.2.5"
     val grizzledSlf4j = "1.3.4"
     val scalacheck = "1.15.4"
     val scalaTest = "3.2.9"
@@ -16,7 +16,7 @@ object Deps {
     val slf4j = "1.7.32"
     val spray = "1.3.6"
     val zeromq = "0.5.2"
-    val akkav = "10.2.4"
+    val akkav = "10.2.5"
     val playv = "2.9.2"
     val akkaStreamv = "2.6.15"
     val scodecV = "1.1.27"
@@ -60,7 +60,7 @@ object Deps {
     // CLI deps
     val scoptV = "4.0.1"
     val sttpV = "1.7.2"
-    val codehausV = "3.1.4"
+    val codehausV = "3.1.6"
     val scalaJsTimeV = "2.3.0"
     val zxingV = "3.4.1"
 
