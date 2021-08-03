@@ -7,6 +7,7 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.StreamTcpException
 import com.fasterxml.jackson.core.JsonParseException
+import com.typesafe.config.ConfigFactory
 import grizzled.slf4j.Logging
 import org.bitcoins.asyncutil.AsyncUtil
 import org.bitcoins.commons.jsonmodels.bitcoind.RpcOpts
@@ -24,6 +25,7 @@ import org.bitcoins.rpc.config.{BitcoindAuthCredentials, BitcoindInstance}
 import org.bitcoins.rpc.util.NativeProcessFactory
 import play.api.libs.json._
 
+import java.io.File
 import java.nio.file.{Files, Path}
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -106,7 +108,14 @@ trait Client
   def getDaemon: BitcoindInstance = instance
 
   override lazy val cmd: String = {
-    val binaryPath = instance.binary.getAbsolutePath
+    // val binaryPath = instance.binary.getAbsolutePath
+    val binaryPath = instance.binary match {
+      case Some(binary) => binary.getAbsolutePath
+      case None => {
+        val path = ConfigFactory.parseFile(new File("bitcoin-s.conf"))
+        path.getString("bitcoin-s.bitcoind-rpc.binary")
+      }
+    }
     val cmd = List(binaryPath,
                    "-datadir=" + instance.datadir,
                    "-rpcport=" + instance.rpcUri.getPort,

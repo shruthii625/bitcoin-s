@@ -51,7 +51,7 @@ case class BitcoindRpcAppConfig(
 
   override def stop(): Future[Unit] = Future.unit
 
-  lazy val DEFAULT_BINARY_PATH: File =
+  lazy val DEFAULT_BINARY_PATH: Option[File] =
     BitcoindInstance.DEFAULT_BITCOIND_LOCATION
 
   lazy val binaryOpt: Option[File] =
@@ -129,8 +129,8 @@ case class BitcoindRpcAppConfig(
     ZmqConfig(zmqHashBlock, zmqRawBlock, zmqHashTx, zmqRawTx)
 
   lazy val bitcoindInstance: BitcoindInstance = {
-    val fallbackBinary =
-      if (isRemote) BitcoindInstance.remoteFilePath else DEFAULT_BINARY_PATH
+    // val fallbackBinary =
+    // if (isRemote) BitcoindInstance.remoteFilePath else DEFAULT_BINARY_PATH
 
     BitcoindInstance(
       network = network,
@@ -138,7 +138,7 @@ case class BitcoindRpcAppConfig(
       rpcUri = rpcUri,
       authCredentials = authCredentials,
       zmqConfig = zmqConfig,
-      binary = binaryOpt.getOrElse(fallbackBinary),
+      binary = binaryOpt,
       datadir = bitcoindDataDir,
       isRemote = isRemote
     )
