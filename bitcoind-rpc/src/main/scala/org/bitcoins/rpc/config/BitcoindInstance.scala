@@ -6,7 +6,7 @@ import org.bitcoins.core.api.commons.InstanceFactory
 import org.bitcoins.core.config.NetworkParameters
 import org.bitcoins.rpc.client.common.BitcoindVersion
 
-import java.io.File
+import java.io.{File, FileNotFoundException}
 import java.net.URI
 import java.nio.file.{Files, Path, Paths}
 import scala.sys.process._
@@ -24,7 +24,7 @@ sealed trait BitcoindInstance extends Logging {
   //      s"bitcoind binary path (${binary.getAbsolutePath}) must be a file")
 
   /** The binary file that should get executed to start Bitcoin Core */
-  def binary: Option[File]
+  def binary: File
 
   def datadir: File
 
@@ -34,17 +34,10 @@ sealed trait BitcoindInstance extends Logging {
   def authCredentials: BitcoindAuthCredentials
   def zmqConfig: ZmqConfig
 
-  def isRemote: Boolean
 
   def getVersion: BitcoindVersion = {
 
-    val binaryPath = binary match {
-      case Some(binary) => binary.getAbsolutePath
-      case None => {
-        val path = ConfigFactory.parseFile(new File("bitcoin-s.conf"))
-        path.getString("bitcoin-s.bitcoind-rpc.binary")
-      }
-    }
+    val binaryPath = binary.getAbsolutePath
     val foundVersion =
       Seq(binaryPath, "--version").!!.split(Properties.lineSeparator).head
         .split(" ")
@@ -81,9 +74,8 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
       rpcUri: URI,
       authCredentials: BitcoindAuthCredentials,
       zmqConfig: ZmqConfig,
-      binary: Option[File],
-      datadir: File,
-      isRemote: Boolean
+      binary: File,
+      datadir: File
   ) extends BitcoindInstance
 
   def apply(
@@ -92,9 +84,8 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
       rpcUri: URI,
       authCredentials: BitcoindAuthCredentials,
       zmqConfig: ZmqConfig = ZmqConfig(),
-      binary: Option[File] = DEFAULT_BITCOIND_LOCATION,
-      datadir: File = BitcoindConfig.DEFAULT_DATADIR,
-      isRemote: Boolean = false
+      binary: File = DEFAULT_BITCOIND_LOCATION,
+      datadir: File = BitcoindConfig.DEFAULT_DATADIR
   ): BitcoindInstance = {
     BitcoindInstanceImpl(network,
                          uri,
@@ -103,10 +94,10 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
                          zmqConfig = zmqConfig,
                          binary = binary,
                          datadir = datadir,
-                         isRemote = isRemote)
+                         )
   }
 
-  lazy val DEFAULT_BITCOIND_LOCATION: Option[File] = {
+  lazy val DEFAULT_BITCOIND_LOCATION: File = {
 
     def findExecutableOnPath(name: String): Option[File] =
       sys.env
@@ -122,7 +113,8 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
         findExecutableOnPath("bitcoind")
       }
 
-    cmd
+    cmd.getOrElse(
+      throw new FileNotFoundException("Cannot find a path to bitcoind"))
 
   }
 
@@ -137,7 +129,7 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
     */
   def fromDatadir(
       datadir: File = BitcoindConfig.DEFAULT_DATADIR,
-      binary: Option[File] = DEFAULT_BITCOIND_LOCATION
+      binary: File = DEFAULT_BITCOIND_LOCATION
   ): BitcoindInstance = {
     require(datadir.exists, s"${datadir.getPath} does not exist!")
     require(datadir.isDirectory, s"${datadir.getPath} is not a directory!")
@@ -163,7 +155,7 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
     */
   def fromConfFile(
       file: File = BitcoindConfig.DEFAULT_CONF_FILE,
-      binary: Option[File] = DEFAULT_BITCOIND_LOCATION
+      binary: File = DEFAULT_BITCOIND_LOCATION
   ): BitcoindInstance = {
     require(file.exists, s"${file.getPath} does not exist!")
     require(file.isFile, s"${file.getPath} is not a file!")
@@ -180,7 +172,7 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
   /** Constructs a `bitcoind` instance from the given config */
   def fromConfig(
       config: BitcoindConfig,
-      binary: Option[File] = DEFAULT_BITCOIND_LOCATION
+      binary: File = DEFAULT_BITCOIND_LOCATION
   ): BitcoindInstance = {
 
     val authCredentials = BitcoindAuthCredentials.fromConfig(config)

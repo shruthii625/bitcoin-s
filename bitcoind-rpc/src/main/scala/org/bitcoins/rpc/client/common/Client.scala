@@ -7,7 +7,6 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.StreamTcpException
 import com.fasterxml.jackson.core.JsonParseException
-import com.typesafe.config.ConfigFactory
 import grizzled.slf4j.Logging
 import org.bitcoins.asyncutil.AsyncUtil
 import org.bitcoins.commons.jsonmodels.bitcoind.RpcOpts
@@ -17,15 +16,11 @@ import org.bitcoins.core.crypto.ECPrivateKeyUtil
 import org.bitcoins.core.util.StartStopAsync
 import org.bitcoins.crypto.{ECPrivateKey, ECPrivateKeyBytes}
 import org.bitcoins.rpc.BitcoindException
-import org.bitcoins.rpc.config.BitcoindAuthCredentials.{
-  CookieBased,
-  PasswordBased
-}
-import org.bitcoins.rpc.config.{BitcoindAuthCredentials, BitcoindInstance}
+import org.bitcoins.rpc.config.BitcoindAuthCredentials.{CookieBased, PasswordBased}
+import org.bitcoins.rpc.config.{BitcoindAuthCredentials, BitcoindInstance, BitcoindInstanceRemote}
 import org.bitcoins.rpc.util.NativeProcessFactory
 import play.api.libs.json._
 
-import java.io.File
 import java.nio.file.{Files, Path}
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -47,7 +42,7 @@ trait Client
     with NativeProcessFactory {
   def version: BitcoindVersion
   protected val instance: BitcoindInstance
-
+  protected val remoteInstance: BitcoindInstanceRemote
   protected def walletExtension(walletName: String): String =
     s"/wallet/$walletName"
 
@@ -106,16 +101,9 @@ trait Client
   private val errorKey: String = "error"
 
   def getDaemon: BitcoindInstance = instance
-
   override lazy val cmd: String = {
-    // val binaryPath = instance.binary.getAbsolutePath
-    val binaryPath = instance.binary match {
-      case Some(binary) => binary.getAbsolutePath
-      case None => {
-        val path = ConfigFactory.parseFile(new File("bitcoin-s.conf"))
-        path.getString("bitcoin-s.bitcoind-rpc.binary")
-      }
-    }
+     val binaryPath = instance.binary.getAbsolutePath
+
     val cmd = List(binaryPath,
                    "-datadir=" + instance.datadir,
                    "-rpcport=" + instance.rpcUri.getPort,
@@ -132,6 +120,7 @@ trait Client
     *         cannot be started
     */
   override def start(): Future[BitcoindRpcClient] = {
+    logger.info("STEP 4")
     if (version != BitcoindVersion.Unknown) {
       val foundVersion = instance.getVersion
       if (foundVersion != version) {
