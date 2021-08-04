@@ -1,100 +1,55 @@
 package org.bitcoins.rpc.config
 
-import com.typesafe.config.ConfigFactory
+
 import grizzled.slf4j.Logging
 import org.bitcoins.core.api.commons.InstanceFactory
 import org.bitcoins.core.config.NetworkParameters
-import org.bitcoins.rpc.client.common.BitcoindVersion
 
 import java.io.{File, FileNotFoundException}
 import java.net.URI
 import java.nio.file.{Files, Path, Paths}
-import scala.sys.process._
 import scala.util.Properties
 
 /** Created by chris on 4/29/17.
   */
 sealed trait BitcoindInstance extends Logging {
-
-  //require(binary.exists || isRemote,
-  //      s"bitcoind binary path (${binary.getAbsolutePath}) does not exist!")
-
-  // would like to check .canExecute as well, but we've run into issues on some machines
-  //require(binary.isFile || isRemote,
-  //      s"bitcoind binary path (${binary.getAbsolutePath}) must be a file")
-
-  /** The binary file that should get executed to start Bitcoin Core */
-  def binary: File
-
-  def datadir: File
-
   def network: NetworkParameters
   def uri: URI
   def rpcUri: URI
   def authCredentials: BitcoindAuthCredentials
   def zmqConfig: ZmqConfig
-
-
-  def getVersion: BitcoindVersion = {
-
-    val binaryPath = binary.getAbsolutePath
-    val foundVersion =
-      Seq(binaryPath, "--version").!!.split(Properties.lineSeparator).head
-        .split(" ")
-        .last
-
-    foundVersion match {
-      case _: String
-          if foundVersion.equals(BitcoindVersion.Experimental.toString) =>
-        BitcoindVersion.Experimental
-      case _: String if foundVersion.startsWith(BitcoindVersion.V16.toString) =>
-        BitcoindVersion.V16
-      case _: String if foundVersion.startsWith(BitcoindVersion.V17.toString) =>
-        BitcoindVersion.V17
-      case _: String if foundVersion.startsWith(BitcoindVersion.V18.toString) =>
-        BitcoindVersion.V18
-      case _: String if foundVersion.startsWith(BitcoindVersion.V19.toString) =>
-        BitcoindVersion.V19
-      case _: String if foundVersion.startsWith(BitcoindVersion.V20.toString) =>
-        BitcoindVersion.V20
-      case _: String if foundVersion.startsWith(BitcoindVersion.V21.toString) =>
-        BitcoindVersion.V21
-      case _: String => BitcoindVersion.Unknown
-    }
-  }
-
   def p2pPort: Int = uri.getPort
+
 }
 
-object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
 
-  private case class BitcoindInstanceImpl(
-      network: NetworkParameters,
-      uri: URI,
-      rpcUri: URI,
-      authCredentials: BitcoindAuthCredentials,
-      zmqConfig: ZmqConfig,
-      binary: File,
-      datadir: File
-  ) extends BitcoindInstance
+object BitcoindInstanceLocal extends InstanceFactory[BitcoindInstance]{
+
+  case class BitcoindInstanceLocal(        network: NetworkParameters,
+                                           uri: URI,
+                                           rpcUri: URI,
+                                           authCredentials: BitcoindAuthCredentials,
+                                           zmqConfig: ZmqConfig,
+                                           binary: File,
+                                           datadir: File
+                                  ) extends BitcoindInstance
 
   def apply(
-      network: NetworkParameters,
-      uri: URI,
-      rpcUri: URI,
-      authCredentials: BitcoindAuthCredentials,
-      zmqConfig: ZmqConfig = ZmqConfig(),
-      binary: File = DEFAULT_BITCOIND_LOCATION,
-      datadir: File = BitcoindConfig.DEFAULT_DATADIR
-  ): BitcoindInstance = {
-    BitcoindInstanceImpl(network,
-                         uri,
-                         rpcUri,
-                         authCredentials,
-                         zmqConfig = zmqConfig,
-                         binary = binary,
-                         datadir = datadir,
-                         )
+             network: NetworkParameters,
+             uri: URI,
+             rpcUri: URI,
+             authCredentials: BitcoindAuthCredentials,
+             zmqConfig: ZmqConfig = ZmqConfig(),
+             binary: File = DEFAULT_BITCOIND_LOCATION,
+             datadir: File = BitcoindConfig.DEFAULT_DATADIR,
+           ): BitcoindInstance = {
+    BitcoindInstanceLocal(network,
+      uri,
+      rpcUri,
+      authCredentials,
+      zmqConfig = zmqConfig,
+      binary = binary,
+      datadir = datadir)
   }
 
   lazy val DEFAULT_BITCOIND_LOCATION: File = {
@@ -115,7 +70,6 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
 
     cmd.getOrElse(
       throw new FileNotFoundException("Cannot find a path to bitcoind"))
-
   }
 
   lazy val remoteFilePath: File = {
@@ -128,9 +82,9 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
     * @throws IllegalArgumentException if the given datadir does not exist
     */
   def fromDatadir(
-      datadir: File = BitcoindConfig.DEFAULT_DATADIR,
-      binary: File = DEFAULT_BITCOIND_LOCATION
-  ): BitcoindInstance = {
+                   datadir: File = BitcoindConfig.DEFAULT_DATADIR,
+                   binary: File = DEFAULT_BITCOIND_LOCATION
+                 ): BitcoindInstance = {
     require(datadir.exists, s"${datadir.getPath} does not exist!")
     require(datadir.isDirectory, s"${datadir.getPath} is not a directory!")
 
@@ -154,9 +108,9 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
     * @throws  IllegalArgumentException if the given config file does not exist
     */
   def fromConfFile(
-      file: File = BitcoindConfig.DEFAULT_CONF_FILE,
-      binary: File = DEFAULT_BITCOIND_LOCATION
-  ): BitcoindInstance = {
+                    file: File = BitcoindConfig.DEFAULT_CONF_FILE,
+                    binary: File = DEFAULT_BITCOIND_LOCATION
+                  ): BitcoindInstance = {
     require(file.exists, s"${file.getPath} does not exist!")
     require(file.isFile, s"${file.getPath} is not a file!")
 
@@ -171,21 +125,48 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
 
   /** Constructs a `bitcoind` instance from the given config */
   def fromConfig(
-      config: BitcoindConfig,
-      binary: File = DEFAULT_BITCOIND_LOCATION
-  ): BitcoindInstance = {
+                  config: BitcoindConfig,
+                  binary: File = DEFAULT_BITCOIND_LOCATION
+                ): BitcoindInstance = {
 
     val authCredentials = BitcoindAuthCredentials.fromConfig(config)
-    BitcoindInstance(config.network,
-                     config.uri,
-                     config.rpcUri,
-                     authCredentials,
-                     zmqConfig = ZmqConfig.fromConfig(config),
-                     binary = binary,
-                     datadir = config.datadir)
+    BitcoindInstanceLocal(config.network,
+      config.uri,
+      config.rpcUri,
+      authCredentials,
+      zmqConfig = ZmqConfig.fromConfig(config),
+      binary = binary,
+      datadir = config.datadir)
   }
 
   override val DEFAULT_DATADIR: Path = BitcoindConfig.DEFAULT_DATADIR.toPath
 
   override val DEFAULT_CONF_FILE: Path = BitcoindConfig.DEFAULT_CONF_FILE.toPath
+
+
+}
+
+object BitcoindInstanceRemote  {
+
+  case class BitcoindInstanceRemote( network: NetworkParameters,
+                                     uri: URI,
+                                     rpcUri: URI,
+                                     authCredentials: BitcoindAuthCredentials,
+                                     zmqConfig: ZmqConfig) extends BitcoindInstance
+
+  def apply(
+             network: NetworkParameters,
+             uri: URI,
+             rpcUri: URI,
+             authCredentials: BitcoindAuthCredentials,
+             zmqConfig: ZmqConfig = ZmqConfig(),
+           ): BitcoindInstanceRemote = {
+    BitcoindInstanceRemote(network,
+      uri,
+      rpcUri,
+      authCredentials,
+      zmqConfig = zmqConfig)
+  }
+
+
 }
