@@ -23,8 +23,7 @@ import org.bitcoins.rpc.config.BitcoindAuthCredentials.{
 import org.bitcoins.rpc.config.BitcoindInstanceLocal.BitcoindInstanceLocal
 import org.bitcoins.rpc.config.{
   BitcoindAuthCredentials,
-  BitcoindInstance,
-  BitcoindInstanceRemote
+  BitcoindInstance
 }
 import org.bitcoins.rpc.util.NativeProcessFactory
 import play.api.libs.json._

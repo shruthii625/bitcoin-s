@@ -5,6 +5,7 @@ import grizzled.slf4j.Logging
 import org.bitcoins.core.api.commons.InstanceFactory
 import org.bitcoins.core.config.NetworkParameters
 import org.bitcoins.rpc.client.common.BitcoindVersion
+import org.bitcoins.rpc.config.BitcoindInstanceLocal.{BitcoindInstanceLocal, DEFAULT_BITCOIND_LOCATION, fromConfFile, fromConfig}
 
 import java.io.{File, FileNotFoundException}
 import java.net.URI
@@ -177,7 +178,7 @@ object BitcoindInstanceLocal extends InstanceFactory[BitcoindInstance]{
 
 }
 
-object BitcoindInstanceRemote  {
+object BitcoindInstanceRemote  extends InstanceFactory[BitcoindInstance]{
 
   case class BitcoindInstanceRemote( network: NetworkParameters,
                                      uri: URI,
@@ -198,6 +199,54 @@ object BitcoindInstanceRemote  {
       authCredentials,
       zmqConfig = zmqConfig)
   }
+  override def fromConfigFile(file: File): BitcoindInstance = {
+    fromConfFile(file, DEFAULT_BITCOIND_LOCATION)
+  }
+
+  /** Constructs a `bitcoind` instance from the given config */
+  def fromConfig(
+                  config: BitcoindConfig,
+                  binary: File = DEFAULT_BITCOIND_LOCATION
+                ): BitcoindInstance = {
+
+    val authCredentials = BitcoindAuthCredentials.fromConfig(config)
+    BitcoindInstanceLocal(config.network,
+      config.uri,
+      config.rpcUri,
+      authCredentials,
+      zmqConfig = ZmqConfig.fromConfig(config),
+      binary = binary,
+      datadir = config.datadir)
+  }
+  /** Constructs a `bitcoind` instance from the given datadir, using the
+    * `bitcoin.conf` found within (if any)
+    *
+    * @throws IllegalArgumentException if the given datadir does not exist
+    */
+  def fromDatadir(
+                   datadir: File = BitcoindConfig.DEFAULT_DATADIR,
+                   binary: File = DEFAULT_BITCOIND_LOCATION
+                 ): BitcoindInstance = {
+    require(datadir.exists, s"${datadir.getPath} does not exist!")
+    require(datadir.isDirectory, s"${datadir.getPath} is not a directory!")
+
+    val configPath = Paths.get(datadir.getAbsolutePath, "bitcoin.conf")
+    if (Files.exists(configPath)) {
+
+      val file = configPath.toFile()
+      fromConfFile(file, binary)
+    } else {
+      fromConfig(BitcoindConfig.empty, binary)
+    }
+  }
+
+  override def fromDataDir(dir: File): BitcoindInstance = {
+    fromDatadir(dir, DEFAULT_BITCOIND_LOCATION)
+  }
 
 
+
+  override val DEFAULT_DATADIR: Path = BitcoindConfig.DEFAULT_DATADIR.toPath
+
+  override val DEFAULT_CONF_FILE: Path = BitcoindConfig.DEFAULT_CONF_FILE.toPath
 }
