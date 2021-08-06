@@ -50,7 +50,6 @@ case class BitcoindRpcAppConfig(
 
   override def stop(): Future[Unit] = Future.unit
 
-
   lazy val binaryOpt: File =
     new File(config.getString("bitcoin-s.bitcoind-rpc.binary"))
 
@@ -125,23 +124,23 @@ case class BitcoindRpcAppConfig(
   lazy val zmqConfig: ZmqConfig =
     ZmqConfig(zmqHashBlock, zmqRawBlock, zmqHashTx, zmqRawTx)
 
-  val bitcoindInstance: BitcoindInstance = if(isRemote) BitcoindInstanceLocal(
-      network = network,
-      uri = uri,
-      rpcUri = rpcUri,
-      authCredentials = authCredentials,
-      zmqConfig = zmqConfig,
-      binary = binaryOpt,
-      datadir = bitcoindDataDir
-    )
-  else BitcoindInstanceRemote(
-      network = network,
-      uri = uri,
-      rpcUri = rpcUri,
-      authCredentials = authCredentials,
-      zmqConfig = zmqConfig)
-
-
+  val bitcoindInstance: BitcoindInstance =
+    if (isRemote)
+      BitcoindInstanceLocal(
+        network = network,
+        uri = uri,
+        rpcUri = rpcUri,
+        authCredentials = authCredentials,
+        zmqConfig = zmqConfig,
+        binary = binaryOpt,
+        datadir = bitcoindDataDir
+      )
+    else
+      BitcoindInstanceRemote(network = network,
+                             uri = uri,
+                             rpcUri = rpcUri,
+                             authCredentials = authCredentials,
+                             zmqConfig = zmqConfig)
 
   lazy val client: BitcoindRpcClient = {
     val version = bitcoindInstance match {

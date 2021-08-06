@@ -27,6 +27,7 @@ import org.bitcoins.rpc.client.v18.BitcoindV18RpcClient
 import org.bitcoins.rpc.client.v19.BitcoindV19RpcClient
 import org.bitcoins.rpc.client.v20.BitcoindV20RpcClient
 import org.bitcoins.rpc.client.v21.BitcoindV21RpcClient
+import org.bitcoins.rpc.config.BitcoindInstanceLocal.BitcoindInstanceLocal
 import org.bitcoins.rpc.config.{BitcoindConfig, BitcoindInstance}
 
 import java.io.File
@@ -65,12 +66,9 @@ class BitcoindRpcClient(val instance: BitcoindInstance)(implicit
     with PsbtRpc
     with UtilRpc {
 
-  override def version: BitcoindVersion = instance.getVersion
-
-  require(
-    instance.isRemote ||
-      version == BitcoindVersion.Unknown || version == instance.getVersion,
-    s"bitcoind version must be $version, got ${instance.getVersion}")
+  override def version: BitcoindVersion = instance match {
+    case localInstance: BitcoindInstanceLocal => localInstance.getVersion
+  }
 
   // Fee Rate Provider
 
@@ -211,12 +209,12 @@ class BitcoindRpcClient(val instance: BitcoindInstance)(implicit
   protected def filtersUnsupported: Future[Nothing] = {
     Future.failed(
       new UnsupportedOperationException(
-        s"bitcoind ${instance.getVersion} does not support block filters"))
+        s"bitcoind ${instance} does not support block filters"))
   }
 
   protected def filterHeadersUnsupported: Future[Nothing] = {
     Future.failed(new UnsupportedOperationException(
-      s"bitcoind ${instance.getVersion} does not support block filters headers through the rpc"))
+      s"bitcoind ${instance} does not support block filters headers through the rpc"))
   }
 }
 
@@ -251,10 +249,11 @@ object BitcoindRpcClient {
   /** Constructs a RPC client from the given datadir, or
     * the default datadir if no directory is provided
     */
+
   def fromDatadir(
       datadir: File = BitcoindConfig.DEFAULT_DATADIR,
-      binary: Option[File]): BitcoindRpcClient = {
-    val instance = BitcoindInstance.fromDatadir(datadir, binary)
+      binary: File): BitcoindRpcClient = {
+    val instance = BitcoindInstanceLocal.fromDatadir(datadir, binary)
     val cli = BitcoindRpcClient(instance)
     cli
   }
