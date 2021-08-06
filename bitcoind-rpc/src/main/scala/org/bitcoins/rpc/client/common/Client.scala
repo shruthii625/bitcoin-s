@@ -17,6 +17,7 @@ import org.bitcoins.core.util.StartStopAsync
 import org.bitcoins.crypto.{ECPrivateKey, ECPrivateKeyBytes}
 import org.bitcoins.rpc.BitcoindException
 import org.bitcoins.rpc.config.BitcoindAuthCredentials.{CookieBased, PasswordBased}
+import org.bitcoins.rpc.config.BitcoindInstanceLocal.BitcoindInstanceLocal
 import org.bitcoins.rpc.config.{BitcoindAuthCredentials, BitcoindInstance, BitcoindInstanceRemote}
 import org.bitcoins.rpc.util.NativeProcessFactory
 import play.api.libs.json._
@@ -42,27 +43,30 @@ trait Client
     with NativeProcessFactory {
   def version: BitcoindVersion
   protected val instance: BitcoindInstance
-  protected val remoteInstance: BitcoindInstanceRemote
   protected def walletExtension(walletName: String): String =
     s"/wallet/$walletName"
 
   /** The log file of the Bitcoin Core daemon
     */
-  lazy val logFile: Path = {
-
-    val prefix = instance.network match {
-      case MainNet  => ""
-      case TestNet3 => "testnet"
-      case RegTest  => "regtest"
-      case SigNet   => "signet"
+  lazy val logFile: Path =instance match {
+    case localInstance:BitcoindInstanceLocal =>{
+      val prefix = instance.network match {
+        case MainNet  => ""
+        case TestNet3 => "testnet"
+        case RegTest  => "regtest"
+        case SigNet   => "signet"
+      }
+      localInstance.datadir.toPath.resolve(prefix).resolve("debug.log")
     }
-    instance.datadir.toPath.resolve(prefix).resolve("debug.log")
+
   }
 
   /** The configuration file of the Bitcoin Core daemon */
-  lazy val confFile: Path =
-    instance.datadir.toPath.resolve("bitcoin.conf")
-
+  lazy val confFile: Path =instance match {
+    case localInstance: BitcoindInstanceLocal => {
+      localInstance.datadir.toPath.resolve("bitcoin.conf")
+    }
+  }
   implicit protected val system: ActorSystem
 
   implicit override protected val executionContext: ExecutionContext =
@@ -101,17 +105,20 @@ trait Client
   private val errorKey: String = "error"
 
   def getDaemon: BitcoindInstance = instance
-  override lazy val cmd: String = {
-     val binaryPath = instance.binary.getAbsolutePath
+  override lazy val cmd: String = instance match {
+    case localInstance: BitcoindInstanceLocal => {
 
-    val cmd = List(binaryPath,
-                   "-datadir=" + instance.datadir,
-                   "-rpcport=" + instance.rpcUri.getPort,
-                   "-port=" + instance.uri.getPort)
-    logger.debug(
-      s"starting bitcoind with datadir ${instance.datadir} and binary path $binaryPath")
+      val binaryPath = localInstance.binary.getAbsolutePath
 
-    cmd.mkString(" ")
+      val cmd = List(binaryPath,
+        "-datadir=" + localInstance.datadir,
+        "-rpcport=" + instance.rpcUri.getPort,
+        "-port=" + instance.uri.getPort)
+      logger.debug(
+        s"starting bitcoind with datadir ${localInstance.datadir} and binary path $binaryPath")
+
+      cmd.mkString(" ")
+    }
   }
 
   /** Starts bitcoind on the local system.
@@ -121,14 +128,18 @@ trait Client
     */
   override def start(): Future[BitcoindRpcClient] = {
     logger.info("STEP 4")
-    if (version != BitcoindVersion.Unknown) {
-      val foundVersion = instance.getVersion
-      if (foundVersion != version) {
-        throw new RuntimeException(
-          s"Wrong version for bitcoind RPC client! Expected $version, got $foundVersion")
-      }
+    instance match {
+      case localInstance: BitcoindInstanceLocal =>
+        if (version != BitcoindVersion.Unknown) {
+          val foundVersion = localInstance.getVersion
+          if (foundVersion != version) {
+            throw new RuntimeException(
+              s"Wrong version for bitcoind RPC client! Expected $version, got $foundVersion")
+          }
+        }
     }
 
+    
     val startedF = startBinary()
 
     // if we're doing cookie based authentication, we might attempt

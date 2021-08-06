@@ -6,6 +6,7 @@ import org.bitcoins.db._
 import org.bitcoins.node.NodeType
 import org.bitcoins.node.config.NodeAppConfig
 import org.bitcoins.rpc.client.common.{BitcoindRpcClient, BitcoindVersion}
+import org.bitcoins.rpc.config.BitcoindInstanceLocal.BitcoindInstanceLocal
 import org.bitcoins.rpc.config._
 
 import java.io.File
@@ -38,11 +39,9 @@ case class BitcoindRpcAppConfig(
   override def start(): Future[Unit] = {
     nodeConf.nodeType match {
       case NodeType.BitcoindBackend =>
-        binaryOpt match {
-          case Some(_) =>
+        bitcoindInstance match {
+          case _: BitcoindInstanceLocal =>
             client.start().map(_ => ())
-          case None =>
-            Future.unit
         }
       case NodeType.SpvNode | NodeType.NeutrinoNode | NodeType.FullNode =>
         Future.unit
@@ -51,11 +50,9 @@ case class BitcoindRpcAppConfig(
 
   override def stop(): Future[Unit] = Future.unit
 
-  lazy val DEFAULT_BINARY_PATH: Option[File] =
-    BitcoindInstance.DEFAULT_BITCOIND_LOCATION
 
-  lazy val binaryOpt: Option[File] =
-    config.getStringOrNone("bitcoin-s.bitcoind-rpc.binary").map(new File(_))
+  lazy val binaryOpt: File =
+    new File(config.getString("bitcoin-s.bitcoind-rpc.binary"))
 
   lazy val bitcoindDataDir = new File(
     config.getStringOrElse("bitcoin-s.bitcoind-rpc.datadir",
@@ -128,24 +125,29 @@ case class BitcoindRpcAppConfig(
   lazy val zmqConfig: ZmqConfig =
     ZmqConfig(zmqHashBlock, zmqRawBlock, zmqHashTx, zmqRawTx)
 
-  lazy val bitcoindInstance: BitcoindInstance = {
-    // val fallbackBinary =
-    // if (isRemote) BitcoindInstance.remoteFilePath else DEFAULT_BINARY_PATH
-
-    BitcoindInstance(
+  val bitcoindInstance: BitcoindInstance = if(isRemote) BitcoindInstanceLocal(
       network = network,
       uri = uri,
       rpcUri = rpcUri,
       authCredentials = authCredentials,
       zmqConfig = zmqConfig,
       binary = binaryOpt,
-      datadir = bitcoindDataDir,
-      isRemote = isRemote
+      datadir = bitcoindDataDir
     )
-  }
+  else BitcoindInstanceRemote(
+      network = network,
+      uri = uri,
+      rpcUri = rpcUri,
+      authCredentials = authCredentials,
+      zmqConfig = zmqConfig)
+
+
 
   lazy val client: BitcoindRpcClient = {
-    val version = versionOpt.getOrElse(bitcoindInstance.getVersion)
+    val version = bitcoindInstance match {
+      case localInstance: BitcoindInstanceLocal =>
+        versionOpt.getOrElse(localInstance.getVersion)
+    }
     implicit val system: ActorSystem =
       ActorSystem.create("bitcoind-rpc-client-created-by-bitcoin-s", config)
     BitcoindRpcClient.fromVersion(version, bitcoindInstance)

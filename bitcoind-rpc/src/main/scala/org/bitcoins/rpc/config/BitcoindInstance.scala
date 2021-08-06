@@ -4,10 +4,12 @@ package org.bitcoins.rpc.config
 import grizzled.slf4j.Logging
 import org.bitcoins.core.api.commons.InstanceFactory
 import org.bitcoins.core.config.NetworkParameters
+import org.bitcoins.rpc.client.common.BitcoindVersion
 
 import java.io.{File, FileNotFoundException}
 import java.net.URI
 import java.nio.file.{Files, Path, Paths}
+import scala.sys.process.stringSeqToProcess
 import scala.util.Properties
 
 /** Created by chris on 4/29/17.
@@ -32,7 +34,36 @@ object BitcoindInstanceLocal extends InstanceFactory[BitcoindInstance]{
                                            zmqConfig: ZmqConfig,
                                            binary: File,
                                            datadir: File
-                                  ) extends BitcoindInstance
+                                  ) extends BitcoindInstance{
+    def getVersion: BitcoindVersion = {
+
+      val binaryPath = binary.getAbsolutePath
+
+      val foundVersion =
+        Seq(binaryPath, "--version").!!.split(Properties.lineSeparator).head
+          .split(" ")
+          .last
+
+      foundVersion match {
+        case _: String
+          if foundVersion.equals(BitcoindVersion.Experimental.toString) =>
+          BitcoindVersion.Experimental
+        case _: String if foundVersion.startsWith(BitcoindVersion.V16.toString) =>
+          BitcoindVersion.V16
+        case _: String if foundVersion.startsWith(BitcoindVersion.V17.toString) =>
+          BitcoindVersion.V17
+        case _: String if foundVersion.startsWith(BitcoindVersion.V18.toString) =>
+          BitcoindVersion.V18
+        case _: String if foundVersion.startsWith(BitcoindVersion.V19.toString) =>
+          BitcoindVersion.V19
+        case _: String if foundVersion.startsWith(BitcoindVersion.V20.toString) =>
+          BitcoindVersion.V20
+        case _: String if foundVersion.startsWith(BitcoindVersion.V21.toString) =>
+          BitcoindVersion.V21
+        case _: String => BitcoindVersion.Unknown
+      }
+    }
+  }
 
   def apply(
              network: NetworkParameters,
