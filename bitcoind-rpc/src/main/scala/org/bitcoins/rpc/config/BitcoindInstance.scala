@@ -1,12 +1,13 @@
 package org.bitcoins.rpc.config
 
+import com.typesafe.config.ConfigFactory
 import grizzled.slf4j.Logging
 import org.bitcoins.core.api.commons.InstanceFactory
 import org.bitcoins.core.config.NetworkParameters
 import org.bitcoins.rpc.client.common.BitcoindVersion
 import org.bitcoins.tor.Socks5ProxyParams
 
-import java.io.{File, FileNotFoundException}
+import java.io.File
 import java.net.URI
 import java.nio.file.{Files, Path, Paths}
 import scala.sys.process._
@@ -122,8 +123,27 @@ object BitcoindInstance extends InstanceFactory[BitcoindInstance] {
         findExecutableOnPath("bitcoind")
       }
 
-    cmd.getOrElse(
-      throw new FileNotFoundException("Cannot find a path to bitcoind"))
+    cmd match {
+      case Some(file) => file
+      case None => {
+        val homeVar = sys.env("HOME");
+        val config = ConfigFactory
+          .parseFile(new File(homeVar + "/.bitcoin-s/bitcoin-s.conf"))
+          .resolve()
+        new File(config.getString("bitcoin-s.bitcoind-rpc.binary"))
+      }
+    }
+    /*cmd.getOrElse(
+    throw new FileNotFoundException("Cannot find a path to bitcoind"))
+    if (cmd.get.isFile) {
+      cmd.get
+    } else {
+      val config = ConfigFactory.parseFile(
+        new File("/home/shruthii/.bitcoin-s/bitcoin-s.conf"))
+
+      new File(config.getString("bitcoin-s.bitcoind-rpc.binary"))
+    }*/
+
   }
 
   lazy val remoteFilePath: File = {
