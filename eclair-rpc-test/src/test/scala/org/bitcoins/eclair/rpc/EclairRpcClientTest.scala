@@ -23,6 +23,8 @@ import org.bitcoins.eclair.rpc.api._
 import org.bitcoins.eclair.rpc.client.EclairRpcClient
 import org.bitcoins.eclair.rpc.config.{
   EclairAuthCredentials,
+  EclairAuthCredentialsLocal,
+  EclairAuthCredentialsRemote,
   EclairInstanceLocal
 }
 import org.bitcoins.rpc.client.common.BitcoindRpcClient
@@ -416,6 +418,17 @@ class EclairRpcClientTest extends BitcoinSAsyncTest {
                                            maxTries = 60)
     } yield succeed
   }
+
+  /* it should "be able to connect with remote instance" in {
+
+    val remoteInstance = EclairInstanceRemote(TestNet3, new URI(s"http://0.0.0.0:${LnPolicy.DEFAULT_LN_P2P_PORT}"), new URI(s"http://127.0.0.1:${LnPolicy.DEFAULT_ECLAIR_API_PORT}"),
+      EclairAuthCredentials(None,None, 8333, ), None)
+
+    val eclairClient = new EclairRpcClient(remoteInstance)
+    for {
+
+    } yield succeed
+  }*/
   it should "be able to open and close a channel" in {
 
     val changeAddrF = bitcoindRpcClientF.flatMap(_.getNewAddress)
@@ -507,10 +520,16 @@ class EclairRpcClientTest extends BitcoinSAsyncTest {
     }
 
     val badCredentialsF = goodCredentialsF.map { good =>
-      EclairAuthCredentials("bad_password",
-                            good.bitcoinAuthOpt,
-                            rpcPort = good.rpcPort,
-                            bitcoindRpcUri = good.bitcoindRpcUri)
+      good match {
+        case good: EclairAuthCredentialsLocal =>
+          EclairAuthCredentialsLocal("bad_password",
+                                     good.bitcoinAuthOpt,
+                                     rpcPort = good.rpcPort,
+                                     bitcoindRpcUri = good.bitcoindRpcUri)
+
+        case _: EclairAuthCredentialsRemote =>
+          sys.error("Remote instance should not be created here")
+      }
     }
 
     val badInstanceF = badCredentialsF.flatMap { badCredentials =>
