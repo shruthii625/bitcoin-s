@@ -24,7 +24,6 @@ case class BitcoindRpcAppConfig(
     private val directory: Path,
     private val confs: Config*)(implicit val system: ActorSystem)
     extends AppConfig {
-
   import system.dispatcher
 
   override protected[bitcoins] def configOverrides: List[Config] = confs.toList

@@ -54,7 +54,7 @@ class EclairRpcClient(
     with NativeProcessFactory
     with StartStopAsync[EclairRpcClient] {
 
-  def getDaemon: EclairInstance = instance
+  def getInstance: EclairInstance = instance
 
   implicit override val executionContext: ExecutionContext = system.dispatcher
 
@@ -634,7 +634,7 @@ class EclairRpcClient(
 
   private def eclairCall[T](command: String, parameters: (String, String)*)(
       implicit reader: Reads[T]): Future[T] = {
-    val request = buildRequest(getDaemon, command, parameters: _*)
+    val request = buildRequest(getInstance, command, parameters: _*)
 
     logger.trace(s"eclair rpc call ${request}")
     val responseF = sendRequest(request)
@@ -912,7 +912,7 @@ class EclairRpcClient(
 
     val uri =
       instance.rpcUri.resolve("/ws").toString.replace("http://", "ws://")
-    instance.authCredentials.bitcoinAuthOpt
+    // instance.authCredentials.bitcoinAuthOpt
     val request = WebSocketRequest(
       uri,
       extraHeaders = Vector(

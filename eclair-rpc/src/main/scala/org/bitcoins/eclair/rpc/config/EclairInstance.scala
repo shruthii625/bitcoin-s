@@ -1,7 +1,7 @@
 package org.bitcoins.eclair.rpc.config
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.bitcoins.core.api.commons.InstanceFactoryLocal
+import org.bitcoins.core.api.commons.{InstanceFactory, InstanceFactoryLocal}
 import org.bitcoins.core.config.{MainNet, NetworkParameters, RegTest, TestNet3}
 import org.bitcoins.core.protocol.ln.LnPolicy
 import org.bitcoins.core.util.NetworkUtil
@@ -19,15 +19,21 @@ sealed trait EclairInstance {
   def rpcUri: URI
   def authCredentials: EclairAuthCredentials
   def logbackXmlPath: Option[String]
-  def bitcoindRpcUri: Option[URI]
-  def bitcoindAuthCredentials: Option[BitcoindAuthCredentials]
-  def zmqConfig: Option[ZmqConfig]
   def proxyParams: Option[Socks5ProxyParams]
 }
 
-sealed trait EclairInstanceLocal extends EclairInstance
+sealed trait EclairInstanceLocal extends EclairInstance {
+  def bitcoindRpcUri: Option[URI]
+  def bitcoindAuthCredentials: Option[BitcoindAuthCredentials]
+  def zmqConfig: Option[ZmqConfig]
 
-sealed trait EclairInstanceRemote extends EclairInstance
+  override def authCredentials: EclairAuthCredentialsLocal
+
+}
+
+sealed trait EclairInstanceRemote extends EclairInstance {
+  override def authCredentials: EclairAuthCredentialsRemote
+}
 
 /** @define fromConfigDoc
   * Parses a [[com.typesafe.config.Config Config]] in the format of this
@@ -41,7 +47,7 @@ object EclairInstanceLocal extends InstanceFactoryLocal[EclairInstanceLocal] {
       network: NetworkParameters,
       uri: URI,
       rpcUri: URI,
-      authCredentials: EclairAuthCredentials,
+      authCredentials: EclairAuthCredentialsLocal,
       logbackXmlPath: Option[String],
       bitcoindRpcUri: Option[URI],
       bitcoindAuthCredentials: Option[BitcoindAuthCredentials],
@@ -53,13 +59,13 @@ object EclairInstanceLocal extends InstanceFactoryLocal[EclairInstanceLocal] {
       network: NetworkParameters,
       uri: URI,
       rpcUri: URI,
-      authCredentials: EclairAuthCredentials,
+      authCredentials: EclairAuthCredentialsLocal,
       logbackXmlPath: Option[String],
       proxyParams: Option[Socks5ProxyParams],
       bitcoindRpcUri: Option[URI] = None,
       bitcoindAuthCredentials: Option[BitcoindAuthCredentials] = None,
       zmqConfig: Option[ZmqConfig] = None
-  ): EclairInstance = {
+  ): EclairInstanceLocal = {
     EclairInstanceLocalImpl(network,
                             uri,
                             rpcUri,
@@ -171,7 +177,7 @@ object EclairInstanceLocal extends InstanceFactoryLocal[EclairInstanceLocal] {
 
     val rpcUri: URI = new URI(s"http://$rpcHost:$rpcPort")
 
-    val eclairAuth = EclairAuthCredentials.fromConfig(config, datadir)
+    val eclairAuth = EclairAuthCredentialsLocal.fromConfig(config, datadir)
 
     val bitcoindRpcHost =
       ConfigUtil.getStringOrElse(config, "eclair.bitcoind.host", "127.0.0.1")
@@ -209,4 +215,35 @@ object EclairInstanceLocal extends InstanceFactoryLocal[EclairInstanceLocal] {
       proxyParams = proxyParams
     )
   }
+}
+
+object EclairInstanceRemote extends InstanceFactory[EclairInstanceRemote] {
+
+  private case class EclairInstanceRemoteImpl(
+      network: NetworkParameters,
+      uri: URI,
+      rpcUri: URI,
+      authCredentials: EclairAuthCredentialsRemote,
+      logbackXmlPath: Option[String],
+      proxyParams: Option[Socks5ProxyParams]
+  ) extends EclairInstanceRemote
+
+  def apply(
+      network: NetworkParameters,
+      uri: URI,
+      rpcUri: URI,
+      authCredentials: EclairAuthCredentialsRemote,
+      logbackXmlPath: Option[String],
+      proxyParams: Option[Socks5ProxyParams]
+  ): EclairInstanceRemote = {
+    EclairInstanceRemoteImpl(network,
+                             uri,
+                             rpcUri,
+                             authCredentials,
+                             logbackXmlPath,
+                             proxyParams)
+  }
+  override def fromConfigFile(file: File): EclairInstanceRemote = ???
+
+  override def fromDataDir(dir: File): EclairInstanceRemote = ???
 }

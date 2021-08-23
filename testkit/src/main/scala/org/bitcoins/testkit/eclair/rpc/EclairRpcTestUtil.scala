@@ -21,7 +21,10 @@ import org.bitcoins.core.protocol.ln.node.NodeId
 import org.bitcoins.crypto.Sha256Digest
 import org.bitcoins.eclair.rpc.api._
 import org.bitcoins.eclair.rpc.client.EclairRpcClient
-import org.bitcoins.eclair.rpc.config.EclairInstanceLocal
+import org.bitcoins.eclair.rpc.config.{
+  EclairInstanceLocal,
+  EclairInstanceRemote
+}
 import org.bitcoins.rpc.client.common.{BitcoindRpcClient, BitcoindVersion}
 import org.bitcoins.rpc.config.{
   BitcoindAuthCredentials,
@@ -525,7 +528,7 @@ trait EclairRpcTestUtil extends Logging {
                                                           eclairCommitOpt1,
                                                           binaryDirectory))
       logger.debug(
-        s"Temp eclair directory created ${e.getDaemon.authCredentials.datadir}")
+        s"Temp eclair directory created ${e.getInstance.authCredentials.datadir}")
       e.start().map(_ => e)
     }
     val otherClientF = e2InstanceF.flatMap { e2 =>
@@ -535,7 +538,7 @@ trait EclairRpcTestUtil extends Logging {
                                                           eclairCommitOpt2,
                                                           binaryDirectory))
       logger.debug(
-        s"Temp eclair directory created ${e.getDaemon.authCredentials.datadir}")
+        s"Temp eclair directory created ${e.getInstance.authCredentials.datadir}")
       e.start().map(_ => e)
     }
 
@@ -683,15 +686,22 @@ trait EclairRpcTestUtil extends Logging {
       system: ActorSystem): BitcoindRpcClient = {
     val bitcoindRpc = {
       val instance = eclairRpcClient.instance
-      val auth = instance.authCredentials
-      val bitcoindInstance = BitcoindInstanceLocal(
-        network = instance.network,
-        uri = new URI("http://localhost:18333"),
-        rpcUri = auth.bitcoindRpcUri,
-        authCredentials = auth.bitcoinAuthOpt.get,
-        binary = BitcoindRpcTestUtil.getBinary(bitcoindVersion)
-      )
-      BitcoindRpcClient.withActorSystem(bitcoindInstance)
+      instance match {
+        case local: EclairInstanceLocal =>
+          val auth = local.authCredentials
+          val bitcoindInstance = BitcoindInstanceLocal(
+            network = instance.network,
+            uri = new URI("http://localhost:18333"),
+            rpcUri = auth.bitcoindRpcUri,
+            authCredentials = auth.bitcoinAuthOpt.get,
+            binary = BitcoindRpcTestUtil.getBinary(bitcoindVersion)
+          )
+          BitcoindRpcClient.withActorSystem(bitcoindInstance)
+
+        case _: EclairInstanceRemote =>
+          sys.error("Remote instance should not be created here")
+      }
+
     }
     bitcoindRpc
   }
