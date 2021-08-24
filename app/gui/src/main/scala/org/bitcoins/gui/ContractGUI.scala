@@ -31,15 +31,17 @@ import scalafx.geometry._
 import scalafx.scene.Parent
 import scalafx.scene.control.{
   ContextMenu,
+  Hyperlink,
+  Label,
   MenuItem,
   TableColumn,
   TableView,
+  TextArea,
   TextField
 }
 import scalafx.scene.layout._
 
 import java.io.File
-import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Date
 import scala.util.{Failure, Success}
@@ -48,14 +50,18 @@ class ContractGUI(glassPane: VBox) {
 
   private[gui] lazy val model = new ContractGUIModel()
 
-  private lazy val addEventTF = new TextField {
-    styleClass += "title-textfield"
-    promptText = "New Event Hex"
+  private lazy val buildOfferLabel = new Label("Build Offer") {
+    styleClass += "load-label"
+  }
+
+  private lazy val buildOfferTF = new TextField {
+    styleClass += "load-textfield"
+    promptText = "Paste Hex"
     onKeyTyped = _ => {
       val event = model.addEvent(this.text.value.trim)
       event match {
         case Some(tup) =>
-          clearEventTF()
+          clearBuildOfferTF()
           eventTableView.sort()
           // Set focus on new item
           eventTableView.getSelectionModel().select(tup)
@@ -66,38 +72,37 @@ class ContractGUI(glassPane: VBox) {
     }
   }
 
-  private def clearEventTF(): Unit = {
-    addEventTF.clear()
+  private def clearBuildOfferTF(): Unit = {
+    buildOfferTF.clear()
   }
 
-  lazy val addEventHBox = new HBox {
-    styleClass += "small"
-    children = Seq(addEventTF)
+  private lazy val acceptLabel = new Label("Accept Offer") {
+    styleClass += "load-label"
   }
 
-  private lazy val addContractTF = new TextField {
-    styleClass += "title-textfield"
-    promptText = "Contract Hex"
+  private lazy val acceptTF = new TextField {
+    styleClass += "load-textfield"
+    promptText = "Paste Hex"
     onKeyTyped = _ => {
       val validAddition = onContractAdded(text.value.trim, None)
-      if (validAddition) clearContractTF() // Clear on valid data
+      if (validAddition) clearAcceptTF() // Clear on valid data
       ()
     }
   }
 
-  private def clearContractTF(): Unit = {
-    addContractTF.clear()
+  private def clearAcceptTF(): Unit = {
+    acceptTF.clear()
   }
 
-  private lazy val fileChooserButton = GUIUtil.getFileChooserButton(file => {
-    val hex = Files.readAllLines(file.toPath).get(0)
-    val validAddition = onContractAdded(hex, Some(file))
-    if (validAddition) clearContractTF() // Clear on valid data
-  })
-
-  lazy val addContractHBox = new HBox {
-    styleClass += "small"
-    children = Seq(fileChooserButton, addContractTF)
+  lazy val loadPane = new GridPane {
+    styleClass += "load-pane"
+    padding = Insets(10, 0, 10, 11)
+    hgap = 5
+    add(buildOfferLabel, 0, 0)
+    add(buildOfferTF, 1, 0)
+    add(new Region { prefWidth = 57 }, 2, 0)
+    add(acceptLabel, 3, 0)
+    add(acceptTF, 4, 0)
   }
 
   private lazy val eventIdCol = new TableColumn[
@@ -196,6 +201,7 @@ class ContractGUI(glassPane: VBox) {
   private lazy val contractStepPane: VBox = new VBox
 
   private def showContractStep(view: Parent): Unit = {
+    resetContractViews()
     contentDetailVBox.children = Seq()
     contractStepPane.children = Seq(view)
   }
@@ -205,12 +211,61 @@ class ContractGUI(glassPane: VBox) {
     hgrow = Priority.Always
   }
 
+  private lazy val welcomePane = new VBox {
+    padding = Insets(15, 0, 0, 0)
+    alignment = Pos.Center
+    spacing = 15
+    children = Seq(
+      new Label("Welcome to Bitcoin-S!") {
+        styleClass += "welcome-header"
+      },
+      new TextArea {
+        styleClass += "welcome-textarea"
+        minWidth = 250
+        maxWidth = Double.MaxValue
+        minHeight = 350
+        // maxHeight doesn't seem to work here...
+        text = "Paste hex code from an Announcement or Contract Template into Build Offer to start a new DLC Offer.\n\n" +
+          "Give the Tor DLC Host Address in the lower left to your counterparty to use when accepting your Offer.\n\n" +
+          "Paste hex code from an Offer you've received into Accept Offer to view and accept.\n\n" +
+          "You can view DLC Contract details, Execute, Refund, and Rebroadcast transactions by selecting a Contract.\n\n" +
+          "Individual DLC Operation dialogs are available from the DLC Operations window in the View menu.\n\n" +
+          "You can backup Bitcoin-S from Save Backup in the File menu."
+        wrapText = true
+      },
+      new Label("Links") { styleClass += "welcome-font" },
+      new VBox {
+        styleClass = Seq("link-background", "welcome-font")
+        children = Seq(
+          new Hyperlink("Suredbits Slack") {
+            onAction = _ => GUIUtil.openUrl("https://suredbits.slack.com/")
+          },
+          new Hyperlink("Suredbits Oracle Explorer") {
+            onAction = _ => GUIUtil.openUrl("https://oracle.suredbits.com/")
+          },
+          new Hyperlink("Be your own Oracle with Krystal Bull") {
+            onAction = _ => GUIUtil.openUrl("https://suredbits.com/krystalbull")
+          },
+          new Hyperlink("Bitcoin-S Code Repository") {
+            onAction =
+              _ => GUIUtil.openUrl("https://github.com/bitcoin-s/bitcoin-s")
+          }
+        )
+      }
+    )
+  }
+
   lazy val contractViews = new VBox {
     margin = Insets(0, 0, 0, 4) // match sidebarAccordian Insets
-    children = Seq(contractStepPane, contentDetailVBox)
+    children = Seq(welcomePane, contractStepPane, contentDetailVBox)
+  }
+
+  private def resetContractViews(): Unit = {
+    contractViews.children = Seq(contractStepPane, contentDetailVBox)
   }
 
   def showDLCView(status: DLCStatus, model: DLCPaneModel): Unit = {
+    resetContractViews()
     contractStepPane.children = Seq()
     contentDetailVBox.children = Seq(ViewDLCDialog.buildView(status, model))
   }
