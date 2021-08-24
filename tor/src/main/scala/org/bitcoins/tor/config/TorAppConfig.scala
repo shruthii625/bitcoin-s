@@ -9,6 +9,7 @@ import org.bitcoins.tor.client.TorClient
 import org.bitcoins.tor.{Socks5ProxyParams, TorParams}
 
 import java.io.File
+import java.net.{InetAddress, InetSocketAddress}
 import java.nio.file.{Files, Path}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.duration.DurationInt
@@ -38,7 +39,9 @@ case class TorAppConfig(
     * place for our node.
     */
   override def start(): Future[Unit] = {
-    if (torParams.isDefined && !isStarted.get) {
+    lazy val torRunning = checkIfTorAlreadyRunning
+    if (enabled && !isStarted.get && !torRunning) {
+      logger.info(s"Starting tor")
       isStarted.set(true)
       val start = System.currentTimeMillis()
       //remove old tor log file so we accurately tell when
@@ -58,9 +61,13 @@ case class TorAppConfig(
     } else if (isStarted.get) {
       logger.debug(s"Tor binary already started")
       Future.unit
+    } else if (torRunning) {
+      logger.info(
+        s"Tor was requested to start, but it is already running. Not starting tor")
+      Future.unit
     } else {
       logger.warn(
-        s"Tor was requested to start, but it is diabled in the configuration file. Not starting tor")
+        s"Tor was requested to start, but it is disabled in the configuration file. Not starting tor")
       Future.unit
     }
   }
@@ -81,19 +88,29 @@ case class TorAppConfig(
 
   /** Checks it the [[isBootstrappedLogLine]] exists in the tor log file */
   private def checkIfLogExists: Boolean = {
-    if (Files.exists(torLogFile)) {
+    torLogFile.toFile.exists() && {
       val stream = Files.lines(torLogFile)
       try {
         stream
           .filter((line: String) => line.contains(isBootstrappedLogLine))
           .count() > 0
       } finally if (stream != null) stream.close()
-    } else {
-      //log file may not exist quite yet as we just started the tor binary
-      //it may take a bit for the tor binary to write the log file
-      false
+    }
+  }
+
+  private def checkIfTorAlreadyRunning: Boolean = {
+    val toCheck = socks5ProxyParams match {
+      case Some(params) => params.address
+      case None =>
+        torParams match {
+          case Some(params) => params.controlAddress
+          case None =>
+            new InetSocketAddress(InetAddress.getLoopbackAddress,
+                                  TorParams.DefaultProxyPort)
+        }
     }
 
+    NetworkUtil.portIsBound(toCheck)
   }
 
   override def stop(): Future[Unit] = {

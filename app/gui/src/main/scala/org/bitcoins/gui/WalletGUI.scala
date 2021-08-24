@@ -21,12 +21,15 @@ abstract class WalletGUI extends Logging {
   }
 
   private lazy val networkLabel = new Label {
-    padding = Insets(0, 10, 0, 0)
-    text <== StringProperty("Network: ") + GlobalData.network
+    text <== GlobalData.networkString
   }
 
   private lazy val infoLabel = new Label {
     text <== StringProperty("Sync Height: ") + GlobalData.syncHeight
+  }
+
+  private lazy val torProxyLabel = new Label {
+    text <== GlobalData.torProxyEnabled
   }
 
   private lazy val connectedLabel = new Label {
@@ -135,24 +138,6 @@ abstract class WalletGUI extends Logging {
     children = Vector(walletGrid, buttonBox)
   }
 
-  private lazy val eventsLabel = new Label("Events")
-
-  private lazy val eventsTitleHbox = new HBox {
-    alignment = Pos.Center
-    children = Seq(eventsLabel, GUIUtil.getHSpacer(), contractGUI.addEventHBox)
-  }
-
-  private lazy val contractLabel = new Label("Contracts")
-
-  private lazy val contractsTitleHbox = new HBox {
-    alignment = Pos.Center
-    children =
-      Seq(contractLabel, GUIUtil.getHSpacer(), contractGUI.addContractHBox)
-  }
-
-  // Magic indent so text doesn't write passed edge of TitledPane
-  private val TITLEPANE_RIGHT_GUTTER = 35
-
   private lazy val sidebarAccordian = new VBox {
     padding = Insets(4)
 
@@ -162,15 +147,14 @@ abstract class WalletGUI extends Logging {
     }
 
     val eventUI = new TitledPane {
-      graphic = eventsTitleHbox
       content = contractGUI.eventPane
+      text = "Events"
       expanded = false
     }
-    eventsTitleHbox.minWidth <== eventUI.width - TITLEPANE_RIGHT_GUTTER
 
     val contractUI = new TitledPane {
-      graphic = contractsTitleHbox
       content = dlcPane.tableView
+      text = "Contracts"
       dlcPane.tableView.onMouseClicked = _ => {
         val i = dlcPane.tableView.getSelectionModel.getSelectedItem
         if (i != null) {
@@ -178,12 +162,12 @@ abstract class WalletGUI extends Logging {
         }
       }
     }
-    contractsTitleHbox.minWidth <== contractUI.width - TITLEPANE_RIGHT_GUTTER
 
     children = Vector(
+      contractGUI.loadPane,
       walletUI,
-      eventUI,
       contractUI,
+      eventUI,
       GUIUtil.getVSpacer(),
       stateDetails
     )
@@ -194,7 +178,7 @@ abstract class WalletGUI extends Logging {
   }
 
   private lazy val stateDetails = new GridPane {
-    visible <== GlobalData.torAddress.isNotEmpty
+    visible <== GlobalData.torDLCHostAddress.isNotEmpty
     padding = Insets(4, 0, 0, 0)
     hgap = 5
     vgap = 5
@@ -206,13 +190,13 @@ abstract class WalletGUI extends Logging {
       children = Seq(
         new TextField {
           hgrow = Priority.Always
-          text <== GlobalData.torAddress
+          text <== GlobalData.torDLCHostAddress
         },
-        GUIUtil.getCopyToClipboardButton(GlobalData.torAddress)
+        GUIUtil.getCopyToClipboardButton(GlobalData.torDLCHostAddress)
       )
     }
     nextRow = 0
-    add(new Label("Tor Address"), 0, nextRow)
+    add(new Label("Tor DLC Host Address"), 0, nextRow)
     add(hbox, 1, nextRow)
     nextRow += 1
   }
@@ -234,11 +218,13 @@ abstract class WalletGUI extends Logging {
   lazy val bottomStack: HBox = new HBox {
     padding = Insets(5, 10, 5, 10)
     hgrow = Priority.Always
+    spacing = 15
     children = Vector(statusLabel,
                       GUIUtil.getHSpacer(),
                       networkLabel,
                       infoLabel,
                       GUIUtil.getHSpacer(),
+                      torProxyLabel,
                       connectedLabel)
   }
 
@@ -248,6 +234,7 @@ abstract class WalletGUI extends Logging {
     bottom = bottomStack
   }
 
+  // BundleGUI overrides initial state
   lazy val rootView: StackPane = new StackPane {
     children = Seq(
       borderPane,
