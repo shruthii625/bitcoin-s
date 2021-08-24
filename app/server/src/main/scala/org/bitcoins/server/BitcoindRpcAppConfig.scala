@@ -191,7 +191,6 @@ case class BitcoindRpcAppConfig(
   }
 }
 
-
 object BitcoindRpcAppConfig
     extends AppConfigFactoryActorSystem[BitcoindRpcAppConfig] {
 
