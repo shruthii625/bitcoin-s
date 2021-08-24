@@ -93,6 +93,8 @@ class WalletGUIModel(dlcModel: DLCPaneModel)(implicit system: ActorSystem)
                   textArea.text = "Error, server did not return anything"
                 } else {
                   textArea.text = s"Transaction sent! $txid"
+                  Platform.runLater(
+                    TransactionSentDialog.show(parentWindow.value, txid))
                 }
               case Failure(err) => throw err
             }
@@ -194,7 +196,7 @@ class WalletGUIModel(dlcModel: DLCPaneModel)(implicit system: ActorSystem)
       case Success(commandReturn) =>
         // Leave Tor Address out of UI if Tor is not enabled
         if (commandReturn != DEFAULT_TOR_ADDRESS)
-          GlobalData.torAddress.value = commandReturn
+          GlobalData.torDLCHostAddress.value = commandReturn
     }
   }
 }
