@@ -42,7 +42,7 @@ class BitcoindConfigPane(
   }
 
   private val rpcPasswordTF: PasswordField = new PasswordField {
-    text = Try(appConfig.rpcPassword).getOrElse("")
+    text = appConfig.rpcPassword.getOrElse("")
     minWidth = 300
   }
 
