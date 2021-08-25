@@ -33,9 +33,10 @@ class EclairRemoteInstanceTest extends BitcoinSAsyncTest {
         None
       )
       eclairClient = new EclairRpcClient(remoteInstance)
-      res <- eclairClient.channelStats()
-    } yield {
-      assert(res.nonEmpty)
-    }
+      _ <- eclairClient.isStarted().map {
+        case false => fail("Couldn't ping eclair")
+        case true  =>
+      }
+    } yield succeed
   }
 }
