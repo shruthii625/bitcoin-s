@@ -25,7 +25,8 @@ import org.bitcoins.eclair.rpc.config.{
   EclairAuthCredentials,
   EclairAuthCredentialsLocal,
   EclairAuthCredentialsRemote,
-  EclairInstanceLocal
+  EclairInstanceLocal,
+  EclairInstanceRemote
 }
 import org.bitcoins.rpc.client.common.BitcoindRpcClient
 import org.bitcoins.testkit.async.TestAsyncUtil
@@ -1233,6 +1234,39 @@ class EclairRpcClientTest extends BitcoinSAsyncTest {
       assert(nodeInfo2.network == RegTest)
       succeed
     }
+
+  }
+
+  it should "be able to connect with remote instance and ping it" in {
+
+    val eclairTestClient =
+      EclairRpcTestClient.fromSbtDownload(eclairVersionOpt = None,
+                                          eclairCommitOpt = None,
+                                          bitcoindRpcClientOpt = None)
+    for {
+      eclair <- eclairTestClient.start()
+      instance = eclair.getInstance
+      _ = logger.info(instance)
+      remoteInstance = EclairInstanceRemote(
+        network = instance.network,
+        uri = instance.uri,
+        rpcUri = instance.rpcUri,
+        EclairAuthCredentialsRemote(password =
+                                      instance.authCredentials.password,
+                                    rpcPort = instance.authCredentials.rpcPort,
+                                    None),
+        None,
+        None
+      )
+      eclairClient = new EclairRpcClient(remoteInstance)
+      _ <- eclairClient.isStarted().map {
+        case false =>
+          eclairTestClient.stop()
+          fail("Couldn't ping eclair")
+        case true =>
+      }
+      _ <- eclairTestClient.stop()
+    } yield succeed
   }
 
   private def hasConnection(
