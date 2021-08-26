@@ -420,16 +420,6 @@ class EclairRpcClientTest extends BitcoinSAsyncTest {
     } yield succeed
   }
 
-  /* it should "be able to connect with remote instance" in {
-
-    val remoteInstance = EclairInstanceRemote(TestNet3, new URI(s"http://0.0.0.0:${LnPolicy.DEFAULT_LN_P2P_PORT}"), new URI(s"http://127.0.0.1:${LnPolicy.DEFAULT_ECLAIR_API_PORT}"),
-      EclairAuthCredentials(None,None, 8333, ), None)
-
-    val eclairClient = new EclairRpcClient(remoteInstance)
-    for {
-
-    } yield succeed
-  }*/
   it should "be able to open and close a channel" in {
 
     val changeAddrF = bitcoindRpcClientF.flatMap(_.getNewAddress)

@@ -130,8 +130,6 @@ class BitcoindRpcClient(override val instance: BitcoindInstance)(implicit
 
   // Node Api
 
-  def getUnconfirmedTransactions() = getRawMemPool.map(_ => ())
-
   override def broadcastTransactions(
       transactions: Vector[Transaction]): Future[Unit] =
     FutureUtil.sequentially(transactions)(sendRawTransaction(_)).map(_ => ())
