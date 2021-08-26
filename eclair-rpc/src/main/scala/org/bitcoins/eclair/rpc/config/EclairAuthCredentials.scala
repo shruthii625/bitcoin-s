@@ -18,6 +18,7 @@ sealed trait EclairAuthCredentials {
   /** The port for eclair's rpc client */
   def rpcPort: Int
 
+  def copyWithDatadir(datadir: File): EclairAuthCredentials
 }
 
 sealed trait EclairAuthCredentialsLocal extends EclairAuthCredentials {
@@ -36,7 +37,7 @@ sealed trait EclairAuthCredentialsLocal extends EclairAuthCredentials {
   /** `rpcport` field in our `bitcoin.conf` file */
   def bitcoindRpcUri: URI
 
-  def copyWithDatadir(datadir: File): EclairAuthCredentialsLocal = {
+  override def copyWithDatadir(datadir: File): EclairAuthCredentialsLocal = {
     EclairAuthCredentialsLocal(password = password,
                                bitcoinAuthOpt = bitcoinAuthOpt,
                                rpcPort = rpcPort,
@@ -45,7 +46,14 @@ sealed trait EclairAuthCredentialsLocal extends EclairAuthCredentials {
   }
 }
 
-sealed trait EclairAuthCredentialsRemote extends EclairAuthCredentials
+sealed trait EclairAuthCredentialsRemote extends EclairAuthCredentials {
+
+  override def copyWithDatadir(datadir: File): EclairAuthCredentialsRemote = {
+    EclairAuthCredentialsRemote(password = password,
+                                rpcPort = rpcPort,
+                                datadir = Some(datadir))
+  }
+}
 
 /** @define fromConfigDoc
   * Parses a [[com.typesafe.config.Config Config]] in the format of this
@@ -148,7 +156,7 @@ object EclairAuthCredentialsRemote {
       password: String,
       rpcPort: Int,
       datadir: Option[File])
-      extends EclairAuthCredentialsRemote {}
+      extends EclairAuthCredentialsRemote
 
   def apply(
       password: String,
@@ -156,4 +164,34 @@ object EclairAuthCredentialsRemote {
       datadir: Option[File] = None): EclairAuthCredentialsRemote = {
     AuthCredentialsRemoteImpl(password, rpcPort, datadir)
   }
+
+  def fromDatadir(datadir: File): EclairAuthCredentials = {
+    val confFile = new File(datadir.getAbsolutePath + "/eclair.conf")
+    val config = ConfigFactory.parseFile(confFile)
+    val auth = fromConfig(config)
+    auth.copyWithDatadir(datadir = datadir)
+  }
+
+  /** $fromConfigDoc
+    */
+  def fromConfig(config: Config, datadir: File): EclairAuthCredentialsRemote =
+    fromConfig(config, Some(datadir))
+
+  /** $fromConfigDoc
+    */
+  def fromConfig(config: Config): EclairAuthCredentialsRemote =
+    fromConfig(config, None)
+
+  private[config] def fromConfig(
+      config: Config,
+      datadir: Option[File]): EclairAuthCredentialsRemote = {
+
+    val password = config.getString("eclair.api.password")
+    val eclairRpcPort = ConfigUtil.getIntOrElse(config, "eclair.api.port", 8080)
+
+    EclairAuthCredentialsRemote(password = password,
+                                rpcPort = eclairRpcPort,
+                                datadir = datadir)
+  }
+
 }

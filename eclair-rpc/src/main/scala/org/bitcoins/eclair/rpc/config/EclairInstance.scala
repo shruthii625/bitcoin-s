@@ -243,7 +243,110 @@ object EclairInstanceRemote extends InstanceFactory[EclairInstanceRemote] {
                              logbackXmlPath,
                              proxyParams)
   }
-  override def fromConfigFile(file: File): EclairInstanceRemote = ???
 
-  override def fromDataDir(dir: File): EclairInstanceRemote = ???
+  val DEFAULT_DATADIR: Path = Paths.get(Properties.userHome, ".eclair")
+
+  val DEFAULT_CONF_FILE: Path = DEFAULT_DATADIR.resolve("eclair.conf")
+
+  def fromDatadir(
+      datadir: File = DEFAULT_DATADIR.toFile,
+      logbackXml: Option[String],
+      proxyParams: Option[Socks5ProxyParams]): EclairInstanceRemote = {
+    require(datadir.exists, s"${datadir.getPath} does not exist!")
+    require(datadir.isDirectory, s"${datadir.getPath} is not a directory!")
+
+    val eclairConf = new File(datadir.getAbsolutePath + "/eclair.conf")
+
+    fromConfFile(eclairConf, logbackXml, proxyParams)
+
+  }
+
+  override def fromConfigFile(
+      file: File = DEFAULT_CONF_FILE.toFile): EclairInstanceRemote =
+    fromConfFile(file, None, None)
+
+  def fromConfFile(
+      file: File = DEFAULT_CONF_FILE.toFile,
+      logbackXml: Option[String],
+      proxyParams: Option[Socks5ProxyParams]): EclairInstanceRemote = {
+    require(file.exists, s"${file.getPath} does not exist!")
+    require(file.isFile, s"${file.getPath} is not a file!")
+
+    val config = ConfigFactory.parseFile(file)
+
+    fromConfig(config, file.getParentFile, logbackXml, proxyParams)
+  }
+
+  override def fromDataDir(
+      dir: File = DEFAULT_DATADIR.toFile): EclairInstanceRemote = {
+    require(dir.exists, s"${dir.getPath} does not exist!")
+    require(dir.isDirectory, s"${dir.getPath} is not a directory!")
+
+    val confFile = dir.toPath.resolve("eclair.conf").toFile
+    fromConfigFile(confFile)
+  }
+
+  /** $fromConfigDoc
+    */
+  def fromConfig(
+      config: Config,
+      datadir: File,
+      logbackXml: Option[String],
+      proxyParams: Option[Socks5ProxyParams]): EclairInstanceRemote = {
+    fromConfig(config, Some(datadir), logbackXml, proxyParams)
+  }
+
+  /** $fromConfigDoc
+    */
+  def fromConfig(config: Config): EclairInstance = {
+    fromConfig(config, None, None, None)
+  }
+
+  private def fromConfig(
+      config: Config,
+      datadir: Option[File],
+      logbackXml: Option[String],
+      proxyParams: Option[Socks5ProxyParams]): EclairInstanceRemote = {
+    val chain = ConfigUtil.getStringOrElse(config, "eclair.chain", "testnet")
+
+    //  default conf: https://github.com/ACINQ/eclair/blob/master/eclair-core/src/main/resources/reference.conf
+    val serverBindingIp =
+      ConfigUtil.getStringOrElse(config, "eclair.server.binding-ip", "0.0.0.0")
+
+    val serverPort = ConfigUtil.getIntOrElse(config,
+                                             "eclair.server.port",
+                                             LnPolicy.DEFAULT_LN_P2P_PORT)
+
+    //  default conf: https://github.com/ACINQ/eclair/blob/master/eclair-core/src/main/resources/reference.conf
+    val rpcHost =
+      ConfigUtil.getStringOrElse(config, "eclair.api.binding-ip", "127.0.0.1")
+
+    val rpcPort = ConfigUtil.getIntOrElse(config,
+                                          "eclair.api.port",
+                                          LnPolicy.DEFAULT_ECLAIR_API_PORT)
+
+    val np: NetworkParameters = chain match {
+      case "regtest" => RegTest
+      case "testnet" => TestNet3
+      case "mainnet" => MainNet
+      case network: String =>
+        throw new IllegalArgumentException(
+          s"Unknown network $network in eclair.conf")
+    }
+
+    val uri: URI = new URI(s"http://$serverBindingIp:$serverPort")
+
+    val rpcUri: URI = new URI(s"http://$rpcHost:$rpcPort")
+
+    val eclairAuth = EclairAuthCredentialsRemote.fromConfig(config, datadir)
+
+    EclairInstanceRemoteImpl(
+      network = np,
+      uri = uri,
+      rpcUri = rpcUri,
+      authCredentials = eclairAuth,
+      logbackXmlPath = logbackXml,
+      proxyParams = proxyParams
+    )
+  }
 }
