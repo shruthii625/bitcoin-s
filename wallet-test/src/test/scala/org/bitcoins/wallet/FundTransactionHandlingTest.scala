@@ -35,30 +35,6 @@ class FundTransactionHandlingTest
   val destination: TransactionOutput =
     TransactionOutput(Bitcoins(0.5), TestUtil.p2pkhScriptPubKey)
 
-  it must "check if all txs in outpointlist are in the mempool" in {
-    fundedWallet: WalletWithBitcoind =>
-      val wallet = fundedWallet.wallet
-      val bitcoind = fundedWallet.bitcoind
-      for {
-        feeRate <- wallet.getFeeRate
-        newAddr <- wallet.getNewAddress()
-        tx <- wallet.sendToAddress(newAddr, Bitcoins(0.1), feeRate)
-        _ <- wallet.broadcastTransaction(tx)
-        rawMempoolData <- bitcoind.getRawMemPool
-        outpointList <- wallet.spendingInfoDAO
-          .findAllOutpoints()
-
-      } yield {
-        val txList =
-          outpointList.map(op => op.txIdBE).sortWith(_.toString > _.toString)
-
-        val intersection =
-          txList.intersect(rawMempoolData).sortWith(_.toString > _.toString)
-
-        assert(txList.equals(intersection))
-      }
-  }
-
   it must "fund a simple raw transaction that requires one utxo" in {
     fundedWallet: WalletWithBitcoind =>
       val wallet = fundedWallet.wallet

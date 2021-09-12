@@ -3,7 +3,6 @@ package org.bitcoins.server
 import akka.actor.ActorSystem
 import akka.dispatch.Dispatchers
 import akka.http.scaladsl.Http
-import monix.execution.Scheduler
 import org.bitcoins.chain.blockchain.ChainHandler
 import org.bitcoins.chain.config.ChainAppConfig
 import org.bitcoins.chain.models._
@@ -16,7 +15,7 @@ import org.bitcoins.core.api.node.{
   NodeApi,
   NodeType
 }
-import org.bitcoins.core.protocol.transaction.Transaction
+
 import org.bitcoins.core.util.NetworkUtil
 import org.bitcoins.core.wallet.fee.SatoshisPerVirtualByte
 import org.bitcoins.dlc.node.DLCNode
@@ -28,7 +27,6 @@ import org.bitcoins.feeprovider._
 import org.bitcoins.node._
 import org.bitcoins.node.config.NodeAppConfig
 import org.bitcoins.node.models.Peer
-import org.bitcoins.rpc.client.common.BitcoindRpcClient
 import org.bitcoins.rpc.config.{BitcoindRpcAppConfig, ZmqConfig}
 import org.bitcoins.server.routes.{BitcoinSServerRunner, Server}
 import org.bitcoins.server.util.BitcoinSAppScalaDaemon
@@ -36,7 +34,6 @@ import org.bitcoins.tor.config.TorAppConfig
 import org.bitcoins.wallet.Wallet
 import org.bitcoins.wallet.config.WalletAppConfig
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
 class BitcoinSServerMain(override val serverArgParser: ServerArgParser)(implicit
@@ -214,7 +211,6 @@ class BitcoinSServerMain(override val serverArgParser: ServerArgParser)(implicit
             if err.getMessage.contains("If we have spent a spendinginfodb") =>
           handleMissingSpendingInfoDb(err, wallet)
       }
-      _ = processTransactionsForBitcoindBackend(wallet, bitcoind)
       _ = BitcoindRpcBackendUtil
         .syncWalletToBitcoind(bitcoind, wallet)
         .flatMap(_ => wallet.updateUtxoPendingStates())
@@ -245,54 +241,6 @@ class BitcoinSServerMain(override val serverArgParser: ServerArgParser)(implicit
       logger.info(s"Done starting Main!")
       ()
     }
-  }
-
-  private def processTransactionsForBitcoindBackend(
-      wallet: Wallet,
-      bitcoind: BitcoindRpcClient) = {
-    lazy val scheduler =
-      Scheduler.singleThread(name = "ReadMempoolEveryThirtySeconds")
-
-    scheduler.scheduleAtFixedRate(
-      0,
-      30,
-      TimeUnit.SECONDS,
-      new Runnable {
-
-        def run(): Unit = {
-          for {
-            outpointList <- wallet.spendingInfoDAO
-              .findAllOutpoints()
-            //addressDao <- wallet.addressDAO.findAllAddresses()
-            txsList <- bitcoind.getRawMemPool
-
-          } yield {
-            /*  val addressList = addressDao.map { addDb =>
-              addDb.address
-            }
-            val flist = txsList.map(tx =>
-              bitcoind
-                .getRawTransaction(tx)
-                .map(txres =>
-                  txres.vout.map(rpctxoutput =>
-                    rpctxoutput.scriptPubKey.addresses.map {
-                      case add: Vector[BitcoinAddress] =>
-                        if (add.intersect(addressList).size > 0) Some(tx)
-                        else None
-                      case _ => None
-                    })))
-             */
-
-            val finalList = outpointList.map(op => op.txIdBE).intersect(txsList)
-            finalList.foreach(tx => {
-              wallet.processTransaction(Transaction.fromHex(tx.hex),
-                                        blockHashOpt = None)
-            })
-          }
-          ()
-        }
-      }
-    )
   }
 
   private def createCallbacks(wallet: Wallet)(implicit

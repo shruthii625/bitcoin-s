@@ -108,6 +108,42 @@ object BitcoindRpcBackendUtil extends Logging {
     }
   }
 
+  def processBitcoindMempoolTransactions(
+      wallet: Wallet,
+      bitcoind: BitcoindRpcClient)(implicit ctx: ExecutionContext) = {
+
+    for {
+      outpointList <- wallet.spendingInfoDAO
+        .findAllOutpoints()
+      //addressDao <- wallet.addressDAO.findAllAddresses()
+      txsList <- bitcoind.getRawMemPool
+
+    } yield {
+      /*  val addressList = addressDao.map { addDb =>
+              addDb.address
+            }
+            val flist = txsList.map(tx =>
+              bitcoind
+                .getRawTransaction(tx)
+                .map(txres =>
+                  txres.vout.map(rpctxoutput =>
+                    rpctxoutput.scriptPubKey.addresses.map {
+                      case add: Vector[BitcoinAddress] =>
+                        if (add.intersect(addressList).size > 0) Some(tx)
+                        else None
+                      case _ => None
+                    })))
+       */
+
+      val finalList = outpointList.map(op => op.txIdBE).intersect(txsList)
+      finalList.foreach(tx => {
+        wallet.processTransaction(Transaction.fromHex(tx.hex),
+                                  blockHashOpt = None)
+      })
+    }
+
+  }
+
   def createWalletWithBitcoindCallbacks(
       bitcoind: BitcoindRpcClient,
       wallet: Wallet)(implicit system: ActorSystem): Wallet = {
