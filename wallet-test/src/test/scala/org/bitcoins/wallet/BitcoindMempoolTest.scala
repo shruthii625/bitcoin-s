@@ -38,16 +38,22 @@ class BitcoindMempoolTest extends BitcoinSWalletTestCachedBitcoindNewest {
         _ <- BitcoindRpcBackendUtil.processBitcoindMempoolTransactions(wallet,
                                                                        bitcoind)
       } yield {
-
         val finalList = txFromTxOutpoints.map(op => op.txIdBE).intersect(txList)
-        finalList.map(tx =>
+
+        val stateList = finalList.map(tx =>
           txidUtxoMap
             .get(tx)
-            .map(info =>
-              if (info.state != TxoState.BroadcastSpent) assert(false)))
+            .map(info => info.state) match {
+            case Some(value) => value
+            case scala.None  =>
+          })
+
+        assert(
+          stateList.equals(
+            Vector.fill(stateList.size)(TxoState.BroadcastSpent)))
 
       }
-      assert(true)
+
   }
 
 }

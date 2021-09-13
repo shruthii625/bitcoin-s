@@ -110,13 +110,19 @@ object BitcoindRpcBackendUtil extends Logging {
 
   def processBitcoindMempoolTransactions(
       wallet: Wallet,
-      bitcoind: BitcoindRpcClient)(implicit ctx: ExecutionContext) = {
-
+      bitcoind: BitcoindRpcClient)(implicit
+      ctx: ExecutionContext): Future[Unit] = {
     for {
       outpointList <- wallet.spendingInfoDAO
         .findAllOutpoints()
       //addressDao <- wallet.addressDAO.findAllAddresses()
-      txsList <- bitcoind.getRawMemPool
+      txIdList <- bitcoind.getRawMemPool
+      txsInp = txIdList
+        .map(txid =>
+          bitcoind
+            .getRawTransaction(txid)
+            .map(rawtx => rawtx.hex.inputs))
+      txsList = txsInp.map(_.map(_.map(_.previousOutput.txIdBE)))
 
     } yield {
       /*  val addressList = addressDao.map { addDb =>
@@ -135,11 +141,16 @@ object BitcoindRpcBackendUtil extends Logging {
                     })))
        */
 
-      val finalList = outpointList.map(op => op.txIdBE).intersect(txsList)
-      finalList.foreach(tx => {
-        wallet.processTransaction(Transaction.fromHex(tx.hex),
-                                  blockHashOpt = None)
-      })
+      //val finalTxs = txsList.map(futTx => futTx.map(tx => tx.inputs.map(inp => inp.previousOutput.txIdBE)))
+      val outpointTxList = outpointList
+        .map(op => op.txIdBE)
+
+      outpointTxList
+        .intersect(txsList)
+        .foreach(tx => {
+          wallet.processTransaction(Transaction.fromHex(tx.hex),
+                                    blockHashOpt = None)
+        })
     }
 
   }
