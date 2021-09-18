@@ -26,31 +26,24 @@ class BitcoindMempoolTest extends BitcoinSWalletTestCachedBitcoindNewest {
     new FutureOutcome(f)
   }
 
-  it must "send txs present in both txoutpointlist and bitcoind mempool for processing" in {
+  it must "check if the state of spending tx has been changed after processing" in {
     fundedWallet: WalletWithBitcoind =>
       val wallet = fundedWallet.wallet
       val bitcoind = fundedWallet.bitcoind
       for {
-        utxoList <- wallet.listUtxos()
-        txList = utxoList.map(info => info.txid)
-        txidUtxoMap = utxoList.map(info => info.txid -> info).toMap
         txFromTxOutpoints <- wallet.spendingInfoDAO.findAllOutpoints()
+        utxolist <- wallet.listUtxos(txFromTxOutpoints)
+        utxostate = utxolist.map(utxo => utxo.state)
         _ <- BitcoindRpcBackendUtil.processBitcoindMempoolTransactions(wallet,
                                                                        bitcoind)
       } yield {
-        val finalList = txFromTxOutpoints.map(op => op.txIdBE).intersect(txList)
-
-        val stateList = finalList.map(tx =>
-          txidUtxoMap
-            .get(tx)
-            .map(info => info.state) match {
-            case Some(value) => value
-            case scala.None  =>
-          })
+        val stateList = utxolist.map(utxo => utxo.state)
 
         assert(
           stateList.equals(
-            Vector.fill(stateList.size)(TxoState.BroadcastSpent)))
+            Vector.fill(stateList.size)(TxoState.BroadcastSpent)),
+          s"\nState before calling processBitcoindMempoolTransactions(): ${utxostate} \n State after calling processBitcoindMempoolTransacctions : ${stateList}"
+        )
 
       }
 

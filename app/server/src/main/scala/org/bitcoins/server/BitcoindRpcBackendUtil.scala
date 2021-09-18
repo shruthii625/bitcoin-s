@@ -7,7 +7,7 @@ import grizzled.slf4j.Logging
 import org.bitcoins.core.api.node.NodeApi
 import org.bitcoins.core.gcs.FilterType
 import org.bitcoins.core.protocol.blockchain.Block
-import org.bitcoins.core.protocol.transaction.Transaction
+import org.bitcoins.core.protocol.transaction.{Transaction, TransactionInput}
 import org.bitcoins.crypto.DoubleSha256Digest
 import org.bitcoins.dlc.wallet.DLCWallet
 import org.bitcoins.rpc.client.common.BitcoindRpcClient
@@ -111,46 +111,34 @@ object BitcoindRpcBackendUtil extends Logging {
   def processBitcoindMempoolTransactions(
       wallet: Wallet,
       bitcoind: BitcoindRpcClient)(implicit
-      ctx: ExecutionContext): Future[Unit] = {
+      ec: ExecutionContext): Future[Unit] = {
     for {
       outpointList <- wallet.spendingInfoDAO
         .findAllOutpoints()
-      //addressDao <- wallet.addressDAO.findAllAddresses()
       txIdList <- bitcoind.getRawMemPool
-      txsInp = txIdList
-        .map(txid =>
-          bitcoind
-            .getRawTransaction(txid)
-            .map(rawtx => rawtx.hex.inputs))
-      txsList = txsInp.map(_.map(_.map(_.previousOutput.txIdBE)))
+      txsInp <- {
+        val nestedFuture: Vector[Future[Seq[TransactionInput]]] = txIdList
+          .map(txid =>
+            bitcoind
+              .getRawTransaction(txid)
+              .map(rawtx => rawtx.hex.inputs))
+        val inputsF: Future[Seq[TransactionInput]] =
+          Future.sequence(nestedFuture).map(_.flatten)
+        inputsF
+      }
+      mempoolOutpoints = txsInp.map(_.previousOutput)
 
     } yield {
-      /*  val addressList = addressDao.map { addDb =>
-              addDb.address
-            }
-            val flist = txsList.map(tx =>
-              bitcoind
-                .getRawTransaction(tx)
-                .map(txres =>
-                  txres.vout.map(rpctxoutput =>
-                    rpctxoutput.scriptPubKey.addresses.map {
-                      case add: Vector[BitcoinAddress] =>
-                        if (add.intersect(addressList).size > 0) Some(tx)
-                        else None
-                      case _ => None
-                    })))
-       */
-
-      //val finalTxs = txsList.map(futTx => futTx.map(tx => tx.inputs.map(inp => inp.previousOutput.txIdBE)))
       val outpointTxList = outpointList
         .map(op => op.txIdBE)
 
-      outpointTxList
-        .intersect(txsList)
-        .foreach(tx => {
-          wallet.processTransaction(Transaction.fromHex(tx.hex),
-                                    blockHashOpt = None)
-        })
+      val finalList = outpointTxList
+        .intersect(
+          mempoolOutpoints.map(previousOutput => previousOutput.txIdBE))
+        .map(tx => Transaction.fromHex(tx.hex))
+      wallet.processTransactions(transactions = finalList, blockHash = None)
+
+      ()
     }
 
   }
