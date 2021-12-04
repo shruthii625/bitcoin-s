@@ -1,10 +1,10 @@
 package org.bitcoins.rpc.client.v22
 
 import akka.actor.ActorSystem
-
 import org.bitcoins.rpc.client.common.{BitcoindRpcClient, BitcoindVersion}
 import org.bitcoins.rpc.client.v21.BitcoindV21RpcClient
 import org.bitcoins.rpc.config.BitcoindInstance
+
 import scala.concurrent.Future
 import scala.util.Try
 

@@ -139,4 +139,14 @@ class BitcoindV22RpcClientTest extends BitcoindFixturesCachedPairV22 {
         assert(tx.vout.head.n == 0)
       }
   }
+
+  it should "get node address given a null parameter" in {
+    nodePair: FixtureParam =>
+      val client = nodePair.node1
+      val nodeF = client.getNodeAddresses()
+
+      nodeF.map { result =>
+        assert(result.isEmpty)
+      }
+  }
 }

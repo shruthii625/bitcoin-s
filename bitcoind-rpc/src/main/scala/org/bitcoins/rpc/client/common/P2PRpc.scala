@@ -8,7 +8,7 @@ import org.bitcoins.commons.jsonmodels.bitcoind._
 import org.bitcoins.commons.serializers.JsonSerializers._
 import org.bitcoins.core.protocol.blockchain.Block
 import org.bitcoins.rpc.client.common.BitcoindVersion._
-import play.api.libs.json.{JsBoolean, JsNumber, JsString}
+import play.api.libs.json.{JsBoolean, JsNumber, JsString, Json}
 
 import java.net.URI
 import scala.concurrent.Future
@@ -104,4 +104,29 @@ trait P2PRpc { self: Client =>
     bitcoindCall[Unit]("submitblock", List(JsString(block.hex)))
 
   }
+
+  private def getNodeAddresses(
+      count: Option[Int]): Future[Vector[GetNodeAddressesResult]] = {
+    self.version.flatMap {
+      case V16 | V17 | Experimental =>
+        Future.failed(
+          new RuntimeException(
+            s"getIndexInfo is only for version V18+, got $version"))
+      case V18 | V19 | V20 | V21 =>
+        bitcoindCall[Vector[GetNodeAddressesResultPreV22]](
+          "getnodeaddresses",
+          List(Json.toJson(count)))
+      case V22 | Unknown =>
+        bitcoindCall[Vector[GetNodeAddressesResultV22]](
+          "getnodeaddresses",
+          List(Json.toJson(count)))
+    }
+
+  }
+
+  def getNodeAddresses(count: Int): Future[Vector[GetNodeAddressesResult]] =
+    getNodeAddresses(Some(count))
+
+  def getNodeAddresses(): Future[Vector[GetNodeAddressesResult]] =
+    getNodeAddresses(None)
 }
