@@ -460,3 +460,22 @@ final case class CreateWalletResult(
     name: String,
     warning: String
 ) extends WalletResult
+
+case class ListDescriptorsResult(
+    walletName: String,
+    descriptors: Vector[Descriptor]
+) extends WalletResult
+
+case class Descriptor(
+    desc: String,
+    timeStamp: Integer,
+    active: Boolean,
+    internal: Boolean = true,
+    range: Vector[Range],
+    next: Integer
+) extends WalletResult
+
+case class Range(
+    rangeStartInclusive: Integer,
+    rangeEndInclusive: Integer
+) extends WalletResult

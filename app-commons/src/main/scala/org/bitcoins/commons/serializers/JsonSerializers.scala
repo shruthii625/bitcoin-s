@@ -19,7 +19,7 @@ import java.time.LocalDateTime
 import org.bitcoins.commons.jsonmodels.SerializedTransaction.tokenToString
 import org.bitcoins.commons.jsonmodels._
 import org.bitcoins.commons.jsonmodels.bitcoind.RpcOpts.AddressType
-import org.bitcoins.commons.jsonmodels.bitcoind._
+import org.bitcoins.commons.jsonmodels.bitcoind.{ListDescriptorsResult, _}
 import org.bitcoins.commons.jsonmodels.clightning.CLightningJsonModels._
 import org.bitcoins.commons.jsonmodels.wallet._
 import org.bitcoins.core.psbt._
@@ -552,6 +552,9 @@ object JsonSerializers {
 
   implicit val estimateSmartFeeResultReads: Reads[EstimateSmartFeeResult] =
     Json.reads[EstimateSmartFeeResult]
+
+  implicit val ListDescriptorsResultReads: Reads[ListDescriptorsResult] =
+    Json.reads[ListDescriptorsResult]
 
   implicit val walletProcessPsbtResultReads: Reads[WalletProcessPsbtResult] =
     Json.reads[WalletProcessPsbtResult]

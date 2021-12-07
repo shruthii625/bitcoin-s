@@ -515,4 +515,15 @@ trait WalletRpc { self: Client =>
       uriExtensionOpt = walletNameOpt.map(walletExtension)
     )
   }
+
+  def listDescriptors(
+      showPrivateDescriptors: Boolean = false,
+      walletNameOpt: Option[String] = None
+  ): Future[ListDescriptorsResult] = {
+    bitcoindCall[ListDescriptorsResult](
+      command = "listdescriptors",
+      List(JsBoolean(showPrivateDescriptors)),
+      uriExtensionOpt = walletNameOpt
+    )
+  }
 }
